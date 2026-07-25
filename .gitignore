@@ -1,4 +1,4 @@
-# Byte-compiled files
+# Python cache
 __pycache__/
 *.py[cod]
 
@@ -9,25 +9,20 @@ venv/
 # Environment variables
 .env
 
-# IDE
+# PyCharm
 .idea/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
 
 # Logs
 *.log
-
-# Python cache
-.pytest_cache/
-
-# Jupyter
-.ipynb_checkpoints/
 
 # Build files
 build/
 dist/
 *.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
