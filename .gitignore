@@ -26,3 +26,24 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Data & models — belong in Feature Store / Model Registry, never in git
+data/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+*.h5
+
+# HTTP response cache
+.cache.sqlite
+*.sqlite
+
+# Test cache
+.pytest_cache/
+
+# VS Code
+.vscode/
+
+# Streamlit production secrets
+.streamlit/secrets.toml
