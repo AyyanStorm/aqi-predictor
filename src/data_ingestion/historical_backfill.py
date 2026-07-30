@@ -1,79 +1,75 @@
-import openmeteo_requests
-import pandas as pd
-import requests_cache
-from retry_requests import retry
+"""
+historical_backfill.py — fetches ~4 years of hourly AQI + weather data
+for every city in CITIES, merges them, and saves both per-city and
+combined CSVs into data/raw/.
+
+Run this file directly (not imported) to execute the backfill:
+    python -m src.data_ingestion.historical_backfill
+"""
+
 from datetime import date
 
-cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
-retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
-openmeteo = openmeteo_requests.Client(session=retry_session)
+import pandas as pd
 
-LATITUDE = 24.8608
-LONGITUDE = 67.0104
-START_DATE = "2022-08-06"
-END_DATE = date.today().isoformat()  #fetches up to "today" when you run it, Dynamic END_DATE
+from src.config import (
+    CITIES,
+    WEATHER_VARIABLES,
+    HISTORICAL_START_DATE,
+    AIR_QUALITY_URL,
+    ARCHIVE_URL,
+    RAW_DIR,
+)
+from src.data_ingestion.open_meteo_client import fetch_air_quality, fetch_weather
+from src.utils.logger import get_logger
 
-# AQI + pollutant data
-aqi_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
-aqi_params = {
-    "latitude": LATITUDE,
-    "longitude": LONGITUDE,
-    "hourly": ["us_aqi", "pm10", "pm2_5", "carbon_monoxide",
-               "nitrogen_dioxide", "sulphur_dioxide", "ozone"],
-    "start_date": START_DATE,
-    "end_date": END_DATE,
-}
-aqi_response = openmeteo.weather_api(aqi_url, params=aqi_params)[0]
-aqi_hourly = aqi_response.Hourly()
+logger = get_logger(__name__)
 
-aqi_data = {
-    "date": pd.date_range(
-        start=pd.to_datetime(aqi_hourly.Time(), unit="s", utc=True),
-        end=pd.to_datetime(aqi_hourly.TimeEnd(), unit="s", utc=True),
-        freq=pd.Timedelta(seconds=aqi_hourly.Interval()),
-        inclusive="left",
-    ),
-    "us_aqi": aqi_hourly.Variables(0).ValuesAsNumpy(),
-    "pm_10": aqi_hourly.Variables(1).ValuesAsNumpy(),
-    "pm_25": aqi_hourly.Variables(2).ValuesAsNumpy(),
-    "co": aqi_hourly.Variables(3).ValuesAsNumpy(),
-    "no2": aqi_hourly.Variables(4).ValuesAsNumpy(),
-    "so2": aqi_hourly.Variables(5).ValuesAsNumpy(),
-    "o3": aqi_hourly.Variables(6).ValuesAsNumpy(),
-}
-aqi_df = pd.DataFrame(data=aqi_data)
+END_DATE = date.today().isoformat()
 
 
-# temperature data
-temp_url = "https://archive-api.open-meteo.com/v1/archive"
-temp_params = {
-    "latitude": LATITUDE,
-    "longitude": LONGITUDE,
-    "start_date": START_DATE,
-    "end_date": END_DATE,
-    "hourly": "temperature_2m",
-}
-temp_response = openmeteo.weather_api(temp_url, params=temp_params)[0]
-temp_hourly = temp_response.Hourly()
+def backfill_city(city_name, lat, lon):
+    """
+    Fetch + merge AQI and weather data for ONE city, save it to its own
+    CSV in data/raw/, and return the merged DataFrame.
+    """
+    aqi_df = fetch_air_quality(lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL)
+    weather_df = fetch_weather(lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL, WEATHER_VARIABLES)
 
-temp_data = {
-    "date": pd.date_range(
-        start=pd.to_datetime(temp_hourly.Time(), unit="s", utc=True),
-        end=pd.to_datetime(temp_hourly.TimeEnd(), unit="s", utc=True),
-        freq=pd.Timedelta(seconds=temp_hourly.Interval()),
-        inclusive="left",
-    ),
-    "temp": temp_hourly.Variables(0).ValuesAsNumpy(),
-}
-temp_df = pd.DataFrame(data=temp_data)
+    before = len(aqi_df)
+    merged_df = pd.merge(aqi_df, weather_df, on="date", how="inner")
+    after = len(merged_df)
+    if after < before:
+        logger.warning(f"{city_name}: merge dropped {before - after} rows ({before} -> {after})")
+
+    # Tag every row with its source city. This is what lets us later
+    # hold out one city entirely (Sialkot) to test whether the model
+    # generalizes, without the model ever seeing "city" as a feature.
+    merged_df["city"] = city_name
+
+    output_path = RAW_DIR / f"{city_name.lower()}_historical.csv"
+    merged_df.to_csv(output_path, index=False)
+    logger.info(f"{city_name}: saved {after} rows to {output_path}")
+
+    return merged_df
 
 
-merged_df = pd.merge(aqi_df, temp_df, on="date", how="inner")
-merged_df = merged_df[["date", "us_aqi", "temp", "pm_10", "pm_25", "co", "no2", "so2", "o3"]]
+if __name__ == "__main__":
+    all_cities_df = []
 
-print(merged_df.head())
-print(f"\nTotal rows: {len(merged_df)}")
-print(f"Date range: {merged_df['date'].min()} to {merged_df['date'].max()}")
+    for city_name, coords in CITIES.items():
+        try:
+            df = backfill_city(city_name, coords["lat"], coords["lon"])
+            all_cities_df.append(df)
+        except Exception as e:
+            # One city failing (rate limit, bad response, etc.) shouldn't
+            # kill the whole 10-city run — log it and keep going.
+            logger.error(f"{city_name}: backfill failed - {e}")
 
-merged_df.to_csv("historical_data.csv", index=False, header=True)
-print("\nSaved to historical_data.csv")
+    combined = pd.concat(all_cities_df, ignore_index=True)
+    combined_path = RAW_DIR / "all_cities_historical.csv"
+    combined.to_csv(combined_path, index=False)
+
+    logger.info(
+        f"Backfill complete: {len(combined)} total rows "
+        f"across {len(all_cities_df)}/{len(CITIES)} cities -> {combined_path}"
+    )

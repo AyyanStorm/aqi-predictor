@@ -49,9 +49,18 @@ for _directory in (DATA_DIR, RAW_DIR, PROCESSED_DIR, MODELS_DIR):
 # Quetta, Hyderabad, Gujranwala) get added on Day 3, plus Sialkot
 # held out separately as the unseen-city validation set.
 CITIES = {
-    "Karachi": {"lat": 24.8608, "lon": 67.0104},
+    "Karachi":     {"lat": 24.8608, "lon": 67.0104},
+    "Lahore":      {"lat": 31.5497, "lon": 74.3436},
+    "Islamabad":   {"lat": 33.6844, "lon": 73.0479},
+    "Faisalabad":  {"lat": 31.4504, "lon": 73.1350},
+    "Rawalpindi":  {"lat": 33.5651, "lon": 73.0169},
+    "Multan":      {"lat": 30.1575, "lon": 71.5249},
+    "Peshawar":    {"lat": 34.0151, "lon": 71.5249},
+    "Quetta":      {"lat": 30.1798, "lon": 66.9750},
+    "Hyderabad":   {"lat": 25.3960, "lon": 68.3578},
+    "Gujranwala":  {"lat": 32.1877, "lon": 74.1945},
 }
-
+SIALKOT = {"lat": 32.4945, "lon": 74.5229}
 
 # =========================================================
 # 3. API ENDPOINTS (Open-Meteo — free, no API key required)
@@ -59,6 +68,18 @@ CITIES = {
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+
+# Weather variables pulled from ARCHIVE_URL (history) and, later, FORECAST_URL
+# (future). Wind is the single most important driver of AQI after the
+# pollutants themselves — it controls how fast pollution disperses.
+WEATHER_VARIABLES = [
+    "temperature_2m",
+    "wind_speed_10m",
+    "wind_direction_10m",
+    "relative_humidity_2m",
+    "surface_pressure",
+    "precipitation",
+]
 
 
 # =========================================================
