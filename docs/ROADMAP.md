@@ -1,6 +1,6 @@
 # AQI Predictor — 28-Day Delivery Roadmap
 
-**Owner:** Tahir Hassan · **Program:** 10Pearls Internship
+**Owner:** Ayyan Amir · **Program:** 10Pearls Internship
 **Day 1:** 27 Jul 2026 · **Day 28:** 23 Aug 2026
 **Repo:** https://github.com/AyyanStorm/aqi-predictor
 **Budget:** ~2h 15m/day (evenings, 8–11pm PKT), 28 consecutive days
