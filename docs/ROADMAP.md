@@ -355,6 +355,15 @@ Days 4, 11, 12 and 15 are lighter than they look. If you fall behind, the safe c
 
 ---
 
+## 7a. Weekly Sunday Review
+
+Every Sunday (Days 7, 14, 21, 28), before starting that day's new topics:
+
+1. **Full file walkthrough** — revisit every file created so far in the whole project (not just that week), one by one: what it does, why it exists, how it connects to the others. Cumulative, not just recent additions — the goal is that by Day 28 you can explain the entire codebase file by file, unprompted.
+2. **Progress check vs. this roadmap** — compare what's actually been built against the Day-by-Day plan (Section 7). Flag anything behind schedule and decide then whether to cut scope (Section 7's slack list) or catch up.
+
+---
+
 ## 8. Git Workflow (for a first-timer)
 
 You are working solo, so keep it simple but disciplined.
