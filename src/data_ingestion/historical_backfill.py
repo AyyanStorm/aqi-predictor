@@ -16,7 +16,8 @@ Run it directly (not imported) to execute the backfill:
     python -m src.data_ingestion.historical_backfill
 """
 
-from datetime import date
+from datetime import date, timedelta
+import time
 
 import pandas as pd
 
@@ -40,6 +41,43 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 END_DATE = date.today().isoformat()
+
+# One giant 4-year request per city is what times out (risk R5). Fetch in
+# ~6-month windows instead: each request is small and fast, and a failure
+# only loses one chunk, not the whole city.
+BACKFILL_CHUNK_DAYS = 180
+SLEEP_BETWEEN_CHUNKS_S = 2   # be polite to the free API
+SLEEP_BETWEEN_CITIES_S = 3
+
+
+
+def _date_chunks(start_date, end_date, chunk_days):
+    """Yield (start, end) ISO date pairs covering [start_date, end_date]."""
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date)
+    current = start
+    while current < end:
+        chunk_end = min(current + timedelta(days=chunk_days), end)
+        yield current.date().isoformat(), chunk_end.date().isoformat()
+        current = chunk_end + timedelta(days=1)
+
+
+def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what):
+    """Fetch one city's data in small windows, concatenate, with sleeps."""
+    frames = []
+    chunks = list(_date_chunks(start_date, end_date, BACKFILL_CHUNK_DAYS))
+    for i, (cs, ce) in enumerate(chunks, 1):
+        try:
+            frames.append(fetch_fn(lat, lon, cs, ce, url))
+        except Exception as e:
+            logger.warning(f"{what} chunk {i}/{len(chunks)} ({cs}..{ce}) failed: {e}; retrying once")
+            time.sleep(5)
+            frames.append(fetch_fn(lat, lon, cs, ce, url))  # second attempt
+        if i < len(chunks):
+            time.sleep(SLEEP_BETWEEN_CHUNKS_S)
+    if not frames:
+        raise RuntimeError(f"{what}: all {len(chunks)} chunks failed")
+    return pd.concat(frames, ignore_index=True)
 
 # Columns that must be complete after the backfill — verification FAILs if
 # any of these has nulls (plus whatever else is unexpectedly null).
@@ -77,8 +115,14 @@ def backfill_city(city_name, lat, lon):
     data/raw/, and return the ENGINEERED frame (features + targets) ready
     for the Feature Store.
     """
-    aqi_df = fetch_air_quality(lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL)
-    weather_df = fetch_weather(lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL, WEATHER_VARIABLES)
+    aqi_df = _fetch_city_chunked(
+        lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL,
+        fetch_air_quality, "aqi",
+    )
+    weather_df = _fetch_city_chunked(
+        lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL,
+        fetch_weather, "weather",
+    )
 
     before = len(aqi_df)
     merged_df = pd.merge(aqi_df, weather_df, on="date", how="inner")
@@ -153,6 +197,7 @@ if __name__ == "__main__":
             # One city failing (rate limit, bad response, etc.) shouldn't
             # kill the whole 10-city run — log it and keep going.
             logger.error(f"{city_name}: backfill failed - {e}")
+        time.sleep(SLEEP_BETWEEN_CITIES_S)  # let the API breathe between cities
 
     if not engineered_frames:
         logger.error("No cities backfilled successfully — aborting.")
