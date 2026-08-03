@@ -2,9 +2,12 @@
 historical_backfill.py — full 10-city backfill: raw fetch → features →
 targets → Feature Store, plus a verification summary.
 
-Day 8 version. For every city in CITIES this script:
-    1. Fetches ~4 years of hourly AQI + weather (Open-Meteo)
-    2. Saves the RAW merged frame to data/raw/ (EDA still reads this)
+Day 8 version (speed-tuned). For every city in CITIES this script:
+    1. Fetches ~4 years of hourly AQI + weather (Open-Meteo), in ~1-year
+       chunks so no single request is big enough to time out (risk R5)
+    2. Saves the RAW merged frame to data/raw/<city>_historical.csv
+       IMMEDIATELY — the file is refreshed the moment a city completes,
+       even if the rest of the run is still going
     3. Engineers features with build_features() (Day 5)
     4. Adds multi-horizon targets with add_targets() (Day 6)
     5. Writes the ENGINEERED frame to the Feature Store (Day 7 adapter —
@@ -12,12 +15,23 @@ Day 8 version. For every city in CITIES this script:
     6. Reads it back and prints a verification summary: row counts per
        city and nulls per column.
 
+Speed design (fixes "too slow, CSVs not updating"):
+    - Cities run CONCURRENTLY (default 3 workers): the work is
+      network-bound, so parallelism is a near-linear speedup.
+    - Client retries are fail-fast (3 tries, short backoff) — a stalled
+      request costs seconds, not minutes.
+    - data/raw/all_cities_historical.csv is REWRITTEN after every city
+      completes, so the combined file is never stale mid-run.
+
 Run it directly (not imported) to execute the backfill:
     python -m src.data_ingestion.historical_backfill
+    python -m src.data_ingestion.historical_backfill --cities Karachi,Lahore
 """
 
-from datetime import date, timedelta
+import argparse
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -42,13 +56,26 @@ logger = get_logger(__name__)
 
 END_DATE = date.today().isoformat()
 
-# One giant 4-year request per city is what times out (risk R5). Fetch in
-# ~6-month windows instead: each request is small and fast, and a failure
-# only loses one chunk, not the whole city.
-BACKFILL_CHUNK_DAYS = 180
-SLEEP_BETWEEN_CHUNKS_S = 2   # be polite to the free API
-SLEEP_BETWEEN_CITIES_S = 3
+# ~1-year windows: small enough to never trigger the read timeout that a
+# single 4-year request caused (the original Day 8 bug).
+BACKFILL_CHUNK_DAYS = 365
+SLEEP_BETWEEN_CHUNKS_S = 1.0   # tiny politeness gap between chunk requests
+CHUNK_RETRY_SLEEP_S = 2.0      # wait before a chunk's single retry
+DEFAULT_WORKERS = 3            # concurrent cities (network-bound, safe on free tier)
 
+# Columns that must be complete after the backfill — verification FAILs if
+# any of these has nulls (plus whatever else is unexpectedly null).
+NON_NULL_COLUMNS = [
+    "us_aqi",
+    EVENT_TIME_COLUMN,
+    PRIMARY_KEY,
+    "y_24",
+    "y_48",
+    "y_72",
+    "aqi_lag_1h",
+    "aqi_lag_24h",
+    "aqi_roll_mean_24h",
+]
 
 
 def _date_chunks(start_date, end_date, chunk_days):
@@ -78,7 +105,7 @@ def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what, *ex
             frames.append(fetch_fn(lat, lon, cs, ce, url, *extra))
         except Exception as e:
             logger.warning(f"{what} chunk {i}/{len(chunks)} ({cs}..{ce}) failed: {e}; retrying once")
-            time.sleep(5)
+            time.sleep(CHUNK_RETRY_SLEEP_S)
             try:
                 frames.append(fetch_fn(lat, lon, cs, ce, url, *extra))
             except Exception as e2:
@@ -90,20 +117,6 @@ def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what, *ex
     if not frames:
         raise RuntimeError(f"{what}: all {len(chunks)} chunks failed")
     return pd.concat(frames, ignore_index=True)
-
-# Columns that must be complete after the backfill — verification FAILs if
-# any of these has nulls (plus whatever else is unexpectedly null).
-NON_NULL_COLUMNS = [
-    "us_aqi",
-    EVENT_TIME_COLUMN,
-    PRIMARY_KEY,
-    "y_24",
-    "y_48",
-    "y_72",
-    "aqi_lag_1h",
-    "aqi_lag_24h",
-    "aqi_roll_mean_24h",
-]
 
 
 def _engineer(df):
@@ -124,8 +137,9 @@ def _engineer(df):
 def backfill_city(city_name, lat, lon):
     """
     Fetch + merge AQI and weather data for ONE city, save the raw frame to
-    data/raw/, and return the ENGINEERED frame (features + targets) ready
-    for the Feature Store.
+    data/raw/ IMMEDIATELY, and return (engineered, raw) frames. The raw CSV
+    is written before engineering so a failure downstream never leaves the
+    city's file stale.
     """
     aqi_df = _fetch_city_chunked(
         lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL,
@@ -153,7 +167,16 @@ def backfill_city(city_name, lat, lon):
 
     engineered = _engineer(merged_df)
     logger.info(f"{city_name}: engineered {len(engineered)} rows (targets complete)")
-    return engineered
+    return engineered, merged_df
+
+
+def write_combined_raw(raw_frames):
+    """Rewrite data/raw/all_cities_historical.csv from whatever has
+    completed so far — called after EVERY city so the file is never stale."""
+    combined = pd.concat(raw_frames, ignore_index=True)
+    combined_path = RAW_DIR / "all_cities_historical.csv"
+    combined.to_csv(combined_path, index=False)
+    logger.info(f"Combined raw CSV refreshed: {len(combined)} rows -> {combined_path}")
 
 
 def verify_backfill(store, expected_raw_rows=None):
@@ -197,19 +220,48 @@ def verify_backfill(store, expected_raw_rows=None):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="10-city AQI backfill -> Feature Store")
+    parser.add_argument(
+        "--cities",
+        help="comma-separated subset, e.g. Karachi,Lahore (default: all 10)",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=DEFAULT_WORKERS,
+        help=f"concurrent cities (default: {DEFAULT_WORKERS})",
+    )
+    args = parser.parse_args()
+
+    if args.cities:
+        wanted = {c.strip() for c in args.cities.split(",")}
+        cities = {k: v for k, v in CITIES.items() if k in wanted}
+    else:
+        cities = CITIES
+
     engineered_frames = []
+    raw_frames = []
     raw_total = 0
 
-    for city_name, coords in CITIES.items():
-        try:
-            df = backfill_city(city_name, coords["lat"], coords["lon"])
-            engineered_frames.append(df)
-            raw_total += len(pd.read_csv(RAW_DIR / f"{city_name.lower()}_historical.csv"))
-        except Exception as e:
-            # One city failing (rate limit, bad response, etc.) shouldn't
-            # kill the whole 10-city run — log it and keep going.
-            logger.error(f"{city_name}: backfill failed - {e}")
-        time.sleep(SLEEP_BETWEEN_CITIES_S)  # let the API breathe between cities
+    logger.info(f"Backfill starting: {len(cities)} cities, {args.workers} workers, "
+                f"{HISTORICAL_START_DATE} -> {END_DATE}")
+
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        futures = {
+            executor.submit(backfill_city, name, coords["lat"], coords["lon"]): name
+            for name, coords in cities.items()
+        }
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                engineered, raw = future.result()
+                engineered_frames.append(engineered)
+                raw_frames.append(raw)
+                raw_total += len(raw)
+                # Combined CSV stays fresh no matter when the run stops.
+                write_combined_raw(raw_frames)
+            except Exception as e:
+                # One city failing (rate limit, bad response, etc.) shouldn't
+                # kill the rest — log it and keep going.
+                logger.error(f"{name}: backfill failed - {e}")
 
     if not engineered_frames:
         logger.error("No cities backfilled successfully — aborting.")

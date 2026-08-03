@@ -16,10 +16,11 @@ logger = get_logger(__name__)
 # Cached (1hr), auto-retrying session — built once, reused by every call
 # below. See Day 1 notes: caching avoids re-hitting the API while you
 # debug; retrying with backoff avoids hammering a struggling server.
-# retries/backoff tuned up for the Day 8 backfill: 4-year requests are
-# big, and Open-Meteo occasionally stalls mid-response (risk R5).
+# retries are fail-fast on purpose: with chunked requests (Day 8 fix) a
+# single stall costs seconds, not minutes — 8 retries x 0.5 backoff could
+# burn ~2 minutes per dead request, which made the backfill crawl.
 cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
-retry_session = retry(cache_session, retries=8, backoff_factor=0.5)
+retry_session = retry(cache_session, retries=3, backoff_factor=0.3)
 openmeteo = openmeteo_requests.Client(session=retry_session)
 
 
