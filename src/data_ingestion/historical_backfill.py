@@ -62,17 +62,29 @@ def _date_chunks(start_date, end_date, chunk_days):
         current = chunk_end + timedelta(days=1)
 
 
-def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what):
-    """Fetch one city's data in small windows, concatenate, with sleeps."""
+def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what, *extra):
+    """Fetch one city's data in small windows, concatenate, with sleeps.
+
+    `extra` is forwarded to fetch_fn (e.g. WEATHER_VARIABLES for
+    fetch_weather, which takes more args than fetch_air_quality). Each
+    chunk gets one retry; a chunk that still fails is SKIPPED with a
+    warning so one bad chunk never kills the whole city. Raises only if
+    every chunk fails.
+    """
     frames = []
     chunks = list(_date_chunks(start_date, end_date, BACKFILL_CHUNK_DAYS))
     for i, (cs, ce) in enumerate(chunks, 1):
         try:
-            frames.append(fetch_fn(lat, lon, cs, ce, url))
+            frames.append(fetch_fn(lat, lon, cs, ce, url, *extra))
         except Exception as e:
             logger.warning(f"{what} chunk {i}/{len(chunks)} ({cs}..{ce}) failed: {e}; retrying once")
             time.sleep(5)
-            frames.append(fetch_fn(lat, lon, cs, ce, url))  # second attempt
+            try:
+                frames.append(fetch_fn(lat, lon, cs, ce, url, *extra))
+            except Exception as e2:
+                logger.error(f"{what} chunk {i}/{len(chunks)} ({cs}..{ce}) failed again: {e2}; skipping chunk")
+                time.sleep(SLEEP_BETWEEN_CHUNKS_S)
+                continue
         if i < len(chunks):
             time.sleep(SLEEP_BETWEEN_CHUNKS_S)
     if not frames:
@@ -121,7 +133,7 @@ def backfill_city(city_name, lat, lon):
     )
     weather_df = _fetch_city_chunked(
         lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL,
-        fetch_weather, "weather",
+        fetch_weather, "weather", WEATHER_VARIABLES,
     )
 
     before = len(aqi_df)
