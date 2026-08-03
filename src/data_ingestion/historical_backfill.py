@@ -1,9 +1,18 @@
 """
-historical_backfill.py — fetches ~4 years of hourly AQI + weather data
-for every city in CITIES, merges them, and saves both per-city and
-combined CSVs into data/raw/.
+historical_backfill.py — full 10-city backfill: raw fetch → features →
+targets → Feature Store, plus a verification summary.
 
-Run this file directly (not imported) to execute the backfill:
+Day 8 version. For every city in CITIES this script:
+    1. Fetches ~4 years of hourly AQI + weather (Open-Meteo)
+    2. Saves the RAW merged frame to data/raw/ (EDA still reads this)
+    3. Engineers features with build_features() (Day 5)
+    4. Adds multi-horizon targets with add_targets() (Day 6)
+    5. Writes the ENGINEERED frame to the Feature Store (Day 7 adapter —
+       Hopsworks when configured, Parquet fallback otherwise)
+    6. Reads it back and prints a verification summary: row counts per
+       city and nulls per column.
+
+Run it directly (not imported) to execute the backfill:
     python -m src.data_ingestion.historical_backfill
 """
 
@@ -18,19 +27,55 @@ from src.config import (
     AIR_QUALITY_URL,
     ARCHIVE_URL,
     RAW_DIR,
+    PROCESSED_DIR,
+    PRIMARY_KEY,
+    EVENT_TIME_COLUMN,
 )
 from src.data_ingestion.open_meteo_client import fetch_air_quality, fetch_weather
+from src.features.build_features import build_features
+from src.features.targets import add_targets
+from src.features.feature_store import get_feature_store
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 END_DATE = date.today().isoformat()
 
+# Columns that must be complete after the backfill — verification FAILs if
+# any of these has nulls (plus whatever else is unexpectedly null).
+NON_NULL_COLUMNS = [
+    "us_aqi",
+    EVENT_TIME_COLUMN,
+    PRIMARY_KEY,
+    "y_24",
+    "y_48",
+    "y_72",
+    "aqi_lag_1h",
+    "aqi_lag_24h",
+    "aqi_roll_mean_24h",
+]
+
+
+def _engineer(df):
+    """
+    Turn a raw merged frame (date column, city column) into the training
+    frame: datetime index + month column (build_features expects both) →
+    features → targets → restore `date` as a column for the store.
+    """
+    df = df.copy()
+    df[EVENT_TIME_COLUMN] = pd.to_datetime(df[EVENT_TIME_COLUMN], utc=True)
+    df = df.set_index(EVENT_TIME_COLUMN).sort_index()
+    df["month"] = df.index.month  # build_features() references df["month"]
+    df = build_features(df)
+    df = add_targets(df)          # drops tail rows with incomplete targets
+    return df.reset_index()       # `date` back to a column (store event time)
+
 
 def backfill_city(city_name, lat, lon):
     """
-    Fetch + merge AQI and weather data for ONE city, save it to its own
-    CSV in data/raw/, and return the merged DataFrame.
+    Fetch + merge AQI and weather data for ONE city, save the raw frame to
+    data/raw/, and return the ENGINEERED frame (features + targets) ready
+    for the Feature Store.
     """
     aqi_df = fetch_air_quality(lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL)
     weather_df = fetch_weather(lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL, WEATHER_VARIABLES)
@@ -48,28 +93,81 @@ def backfill_city(city_name, lat, lon):
 
     output_path = RAW_DIR / f"{city_name.lower()}_historical.csv"
     merged_df.to_csv(output_path, index=False)
-    logger.info(f"{city_name}: saved {after} rows to {output_path}")
+    logger.info(f"{city_name}: saved {after} raw rows to {output_path}")
 
-    return merged_df
+    engineered = _engineer(merged_df)
+    logger.info(f"{city_name}: engineered {len(engineered)} rows (targets complete)")
+    return engineered
+
+
+def verify_backfill(store, expected_raw_rows=None):
+    """
+    Read the whole store back and print a verification summary: total rows,
+    rows per city, and nulls per column. Returns (ok, report_df, nulls).
+    """
+    stored = store.read_features()
+    if stored.empty:
+        logger.error("Verification FAILED: store returned zero rows")
+        return False, stored, None
+
+    total = len(stored)
+    per_city = stored.groupby(PRIMARY_KEY).size().sort_values(ascending=False)
+    nulls = stored.isna().sum()
+    nulls = nulls[nulls > 0].sort_values(ascending=False)
+
+    logger.info("=" * 60)
+    logger.info("BACKFILL VERIFICATION")
+    logger.info("=" * 60)
+    logger.info(f"Total rows in store : {total}")
+    if expected_raw_rows:
+        logger.info(f"Expected ~           : {expected_raw_rows} (raw); engineered is lower "
+                    f"by ~72 rows/city dropped for incomplete targets")
+    logger.info("Rows per city:")
+    for city, count in per_city.items():
+        logger.info(f"  {city:<14} {count:>8,}")
+    if nulls.empty:
+        logger.info("Nulls per column    : NONE ✓")
+        ok = True
+    else:
+        logger.info("Nulls per column (non-zero only):")
+        for col, count in nulls.items():
+            flag = "  <-- MUST BE FIXED" if col in NON_NULL_COLUMNS else ""
+            logger.info(f"  {col:<28} {count:>8,}{flag}")
+        ok = bool(set(nulls.index).isdisjoint(NON_NULL_COLUMNS))
+
+    logger.info("=" * 60)
+    logger.info(f"Verification result : {'PASS ✓' if ok else 'FAIL ✗'}")
+    return ok, stored, nulls
 
 
 if __name__ == "__main__":
-    all_cities_df = []
+    engineered_frames = []
+    raw_total = 0
 
     for city_name, coords in CITIES.items():
         try:
             df = backfill_city(city_name, coords["lat"], coords["lon"])
-            all_cities_df.append(df)
+            engineered_frames.append(df)
+            raw_total += len(pd.read_csv(RAW_DIR / f"{city_name.lower()}_historical.csv"))
         except Exception as e:
             # One city failing (rate limit, bad response, etc.) shouldn't
             # kill the whole 10-city run — log it and keep going.
             logger.error(f"{city_name}: backfill failed - {e}")
 
-    combined = pd.concat(all_cities_df, ignore_index=True)
-    combined_path = RAW_DIR / "all_cities_historical.csv"
-    combined.to_csv(combined_path, index=False)
+    if not engineered_frames:
+        logger.error("No cities backfilled successfully — aborting.")
+        raise SystemExit(1)
 
-    logger.info(
-        f"Backfill complete: {len(combined)} total rows "
-        f"across {len(all_cities_df)}/{len(CITIES)} cities -> {combined_path}"
-    )
+    combined = pd.concat(engineered_frames, ignore_index=True)
+
+    # Engineered combined copy on disk (handy for quick local inspection).
+    engineered_path = PROCESSED_DIR / "all_cities_engineered.csv"
+    combined.to_csv(engineered_path, index=False)
+    logger.info(f"Engineered combined: {len(combined)} rows -> {engineered_path}")
+
+    # Feature Store write (Hopsworks when .env is configured, else Parquet).
+    store = get_feature_store()
+    store.write_features(combined)
+
+    # Verification summary.
+    verify_backfill(store, expected_raw_rows=raw_total)
