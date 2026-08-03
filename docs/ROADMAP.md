@@ -64,6 +64,8 @@ Family B is legal because weather forecasts genuinely exist at prediction time. 
 
 **Leakage rule to hold in your head all 28 days:** every feature must be answerable with "yes, I would know this value at the moment I press Predict." If the answer is no, delete the feature.
 
+**Implementation note (Family B):** the roadmap above only describes the *theory* — the code must actually build it. Family B is constructed inside `build_features.py` by shifting historical weather forward to the target timestamps (t+24h/48h/72h), producing the exact same columns the forecast API will supply at inference time on Day 16. If training never sees future-weather features, the model is learning on half the information the roadmap says matters most (wind).
+
 ---
 
 ## 3. Your Differentiator: Location-Aware Prediction
@@ -218,6 +220,7 @@ aqi-predictor/
 │
 ├── app/
 │   ├── streamlit_app.py               # entrypoint
+│   ├── api.py                         # FastAPI: /predict?lat=&lon= → +24h/48h/72h JSON (brief requirement)
 │   └── components/
 │       ├── location_picker.py
 │       ├── forecast_cards.py
@@ -256,7 +259,7 @@ aqi-predictor/
 
 1. **`src/config.py` is the single source of truth.** No coordinate, date, filename, or threshold is typed twice anywhere in the codebase. When the reviewer asks "how do I change the city list?" the answer must be "one line in config.py."
 
-2. **`build_features.py` is shared by training and inference.** This is the number-one cause of ML systems silently breaking — training-serving skew. If backfill computes a 24h rolling mean one way and the dashboard computes it another way, your predictions are garbage and no error is ever raised. One function, called by both.
+2. **`build_features.py` is shared by training and inference.** This is the number-one cause of ML systems silently breaking — training-serving skew. If backfill computes a 24h rolling mean one way and the dashboard computes it another way, your predictions are garbage and no error is ever raised. One function, called by both. It must also be **self-contained**: time columns (`month`, `day_of_week`, `local_hour`) are derived from the datetime index *inside* the function, never passed in by the caller — a hidden external dependency (e.g. a caller-supplied `month` column) is exactly how skew sneaks in.
 
 3. **All paths are absolute, derived from a `PROJECT_ROOT` constant** in `config.py` (use `pathlib.Path(__file__).resolve().parents[1]`). Your current `to_csv("historical_data.csv")` writes relative to whatever directory you happen to launch from — it will break the moment GitHub Actions runs it.
 
@@ -277,13 +280,14 @@ aqi-predictor/
 | Model Registry | Hopsworks Model Registry, `joblib` local fallback | Brief requirement. |
 | Explainability | SHAP (`TreeExplainer`) | Fast and exact for tree models. Brief requirement. |
 | Dashboard | Streamlit + Plotly | Pure Python, free hosting, interactive charts. |
+| API layer | FastAPI | The brief explicitly says "Streamlit/Gradio **and** Flask/FastAPI" — Streamlit alone does not satisfy it. A thin `/predict` endpoint (lat, lon → +24h/48h/72h JSON) covers the bullet at ~100 lines. |
 | Geolocation | `streamlit-js-eval` → `ipapi.co` → Open-Meteo Geocoding | Three-tier fallback, zero API keys. |
 | Orchestration | GitHub Actions (cron) | Free, already where your code lives. Airflow needs a server you do not have. |
-| Deployment | Streamlit Community Cloud | Free, deploys straight from the repo, gives a public URL for your submission. |
+| Deployment | Streamlit Community Cloud (+ FastAPI on the same repo) | Free, deploys straight from the repo, gives a public URL for your submission. |
 | Testing | pytest | Lightweight. |
 | Secrets | `python-dotenv` locally, GitHub Secrets in CI | Never hardcode a key. |
 
-**Deliberately excluded:** Docker, Airflow, AWS, MLflow, FastAPI. Every one of them is defensible in a real system and every one of them will eat three days you do not have. If a reviewer asks, your answer is the correct engineering answer: *"GitHub Actions met the scheduling requirement at zero operational cost; Airflow would have added a hosting dependency without adding capability at this scale."* That is a better answer than a broken Airflow install.
+**Deliberately excluded:** Docker, Airflow, AWS, MLflow. Every one of them is defensible in a real system and every one of them will eat three days you do not have. If a reviewer asks, your answer is the correct engineering answer: *"GitHub Actions met the scheduling requirement at zero operational cost; Airflow would have added a hosting dependency without adding capability at this scale."* That is a better answer than a broken Airflow install.
 
 ---
 
@@ -297,14 +301,14 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 |---|---|---|---|---|
 | 1 | Mon 27 Jul | Git hygiene, secrets, project skeleton, read your own code line-by-line | `.gitignore`, `requirements.txt`, `README.md`, `src/`, `src/config.py`, `docs/`, `data/`, `.env.example` | `chore: project skeleton, gitignore, config module` |
 | 2 | Tue 28 Jul | Python + pandas fluency on real data; DataFrame, index, dtypes, datetime, groupby, resample | `notebooks/01_eda.ipynb` | `feat: initial EDA notebook` |
-| 3 | Wed 29 Jul | Refactor ingestion: API client, multi-city loop, wind/humidity/pressure, timezone handling, logging | `src/data_ingestion/open_meteo_client.py`, `src/utils/logger.py`, refactored `historical_backfill.py` | `refactor: modular multi-city ingestion with full weather variables` |
+| 3 | Wed 29 Jul | Refactor ingestion: API client, multi-city loop, wind/humidity/pressure/boundary-layer height, timezone handling, logging | `src/data_ingestion/open_meteo_client.py`, `src/utils/logger.py`, refactored `historical_backfill.py` | `refactor: modular multi-city ingestion with full weather variables` |
 
 ### Phase 1 — Data & Features (Days 4–8)
 
 | Day | Date | Theme | NEW | Commit |
 |---|---|---|---|---|
 | 4 | Thu 30 Jul | EDA deep-dive: distributions, seasonality, diurnal cycle, correlations, missing data, outliers | (extend notebook) | `docs: EDA findings and visualisations` |
-| 5 | Fri 31 Jul | Feature engineering theory: lags, rolling windows, cyclical encoding (sin/cos), change rate, why each one exists | `src/features/build_features.py` | `feat: feature engineering module` |
+| 5 | Fri 31 Jul | Feature engineering: lags, rolling windows, cyclical encoding for hour/day-of-week/month (sin/cos), AQI change rate, Family B future-weather features at t+24/48/72. ALL time columns derived from the index inside the function (no caller-supplied `month` — skew guard). | `src/features/build_features.py` | `feat: feature engineering module` |
 | 6 | Sat 1 Aug | Target construction + leakage audit; walk-forward split design | `src/features/targets.py` | `feat: multi-horizon target construction` |
 | 7 | Sun 2 Aug | Hopsworks account, feature group schema, primary key & event-time design | `src/features/feature_store.py` | `feat: Hopsworks feature store integration` |
 | 8 | Mon 3 Aug | Run the full 10-city 4-year backfill into the Feature Store; verify row counts and nulls | — | `feat: complete historical backfill to feature store` |
@@ -325,10 +329,10 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 
 | Day | Date | Theme | NEW | Commit |
 |---|---|---|---|---|
-| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch → same features → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` |
+| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` |
 | 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` |
 | 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` |
-| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py` | `feat: interactive charts and hazard alerts` |
+| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/api.py` | `feat: interactive charts, hazard alerts, and FastAPI endpoint` |
 | 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard | — | `feat: SHAP explainability in dashboard` |
 
 ### Phase 4 — Automation (Days 21–24)
@@ -425,10 +429,12 @@ ci:       pipeline changes
 - [ ] Model Registry contains versioned models for all three horizons
 - [ ] Dashboard live on a public Streamlit URL
 - [ ] Dashboard auto-detects location and forecasts AQI for +24h / +48h / +72h
+- [ ] FastAPI `/predict` endpoint returns the 3-day forecast as JSON (brief: Streamlit **and** Flask/FastAPI)
 - [ ] RMSE, MAE and R² reported per horizon, versus a naive baseline
 - [ ] Unseen-city holdout results published — proves the "works anywhere" claim
 - [ ] SHAP explanations visible in the dashboard
 - [ ] Hazardous-AQI alert triggers above threshold
+- [ ] Time-based features cover hour, day-of-week, and month (brief requirement) — asserted in tests
 - [ ] EDA notebook committed with findings written up
 - [ ] README: architecture diagram, screenshots, setup steps, results table
 - [ ] `docs/PROJECT_REPORT.md` complete
