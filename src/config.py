@@ -102,4 +102,20 @@ FORECAST_HORIZONS = [24, 48, 72]
 # instead from GitHub Secrets. Same code, works in both places.
 load_dotenv()
 
+# =========================================================
+# 6. HOPSWORKS FEATURE STORE (Day 7+)
+# =========================================================
+# Real values live in .env (gitignored). On GitHub Actions they come
+# from repo Secrets — same os.getenv() call, no code change.
 HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")
+HOPSWORKS_PROJECT = os.getenv("HOPSWORKS_PROJECT")
+HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "eu-west.cloud.hopsworks.ai")
+HOPSWORKS_PORT = int(os.getenv("HOPSWORKS_PORT", "443"))
+
+# Feature group schema — one definition, used by both the Hopsworks
+# adapter and the Parquet fallback so they can never drift apart.
+FEATURE_GROUP_NAME = "aqi_features"
+FEATURE_GROUP_VERSION = 1
+PRIMARY_KEY = "city"            # which city the row belongs to
+EVENT_TIME_COLUMN = "date"      # hourly timestamp (matches ingestion output)
+DATA_DIR_FALLBACK = PROCESSED_DIR / "feature_store_parquet"
