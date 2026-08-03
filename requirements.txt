@@ -3,4 +3,4 @@ requests-cache
 retry-requests
 pandas
 numpy
-python-dotenv
+python-dotenvpyarrow

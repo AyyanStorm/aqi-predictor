@@ -54,7 +54,10 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-END_DATE = date.today().isoformat()
+# The weather archive API refuses end_date = today (max is yesterday, UTC).
+# Using today made the final chunk fail for every city and silently dropped
+# the last 12 days of weather per city. Clamp to yesterday.
+END_DATE = (date.today() - timedelta(days=1)).isoformat()
 
 # ~1-year windows: small enough to never trigger the read timeout that a
 # single 4-year request caused (the original Day 8 bug).
