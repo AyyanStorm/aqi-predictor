@@ -66,19 +66,28 @@ SLEEP_BETWEEN_CHUNKS_S = 1.0   # tiny politeness gap between chunk requests
 CHUNK_RETRY_SLEEP_S = 2.0      # wait before a chunk's single retry
 DEFAULT_WORKERS = 3            # concurrent cities (network-bound, safe on free tier)
 
-# Columns that must be complete after the backfill — verification FAILs if
-# any of these has nulls (plus whatever else is unexpectedly null).
-NON_NULL_COLUMNS = [
+# Columns that MUST be 100% complete — any null here is a real bug.
+CRITICAL_COLUMNS = [
     "us_aqi",
     EVENT_TIME_COLUMN,
     PRIMARY_KEY,
     "y_24",
     "y_48",
     "y_72",
-    "aqi_lag_1h",
-    "aqi_lag_24h",
-    "aqi_roll_mean_24h",
 ]
+
+# Lag/rolling features are EXPECTED to have nulls at the start of each
+# city's series (no history before the first row). Max allowed nulls =
+# warm-up rows x 10 cities. Nulls beyond this mean real data gaps.
+WARMUP_ALLOWANCE = {
+    "aqi_lag_1h": 10,            # 1 first row/city
+    "aqi_lag_24h": 240,          # first 24h/city
+    "aqi_lag_168h": 1680,        # first 168h/city (one week)
+    "aqi_change_rate_24h": 240,  # us_aqi - aqi_lag_24h
+    "aqi_roll_mean_24h": 230,    # rolling(24).mean() -> 23 NaN rows/city
+    "aqi_roll_max_24h": 230,     # rolling(24).max()  -> 23 NaN rows/city
+    "aqi_roll_mean_168h": 1670,  # rolling(168).mean() -> 167 NaN rows/city
+}
 
 
 def _date_chunks(start_date, end_date, chunk_days):
@@ -212,10 +221,17 @@ def verify_backfill(store, expected_raw_rows=None):
         ok = True
     else:
         logger.info("Nulls per column (non-zero only):")
+        ok = True
         for col, count in nulls.items():
-            flag = "  <-- MUST BE FIXED" if col in NON_NULL_COLUMNS else ""
+            if col in CRITICAL_COLUMNS:
+                flag = "  <-- MUST BE FIXED"
+                ok = False
+            elif col in WARMUP_ALLOWANCE and count <= WARMUP_ALLOWANCE[col]:
+                flag = "  (expected warm-up nulls ✓)"
+            else:
+                flag = "  <-- UNEXPECTED, check"
+                ok = False
             logger.info(f"  {col:<28} {count:>8,}{flag}")
-        ok = bool(set(nulls.index).isdisjoint(NON_NULL_COLUMNS))
 
     logger.info("=" * 60)
     logger.info(f"Verification result : {'PASS ✓' if ok else 'FAIL ✗'}")
