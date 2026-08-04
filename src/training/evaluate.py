@@ -115,16 +115,19 @@ def seasonal_naive_predictions(df, horizons=None, period_hours=168):
     before t, so the value is always available at prediction time — the
     same guarantee the roadmap's leakage rule demands of every feature.
 
-    shift(k) with k = h - period < 0 pulls that past value onto row t,
-    per city, so cities never bleed into each other.
+    pandas shift() semantics: shift(+k) puts the value from k rows EARLIER
+    (the past) onto row t. So we need shift(+period - h), a POSITIVE shift
+    that looks back — NOT a negative one, which would pull values from the
+    future onto row t (leakage). Grouped per city so cities never bleed
+    into each other.
     """
     if horizons is None:
         horizons = FORECAST_HORIZONS
     preds = pd.DataFrame(index=df.index)
     for h in horizons:
-        shift = h - period_hours  # negative: look back into the past
+        lookback = period_hours - h  # positive: look back into the past
         preds[f"{_TARGET_PREFIX}{h}"] = df.groupby("city")["us_aqi"].transform(
-            lambda s: s.shift(shift)
+            lambda s: s.shift(lookback)
         )
     return preds
 
