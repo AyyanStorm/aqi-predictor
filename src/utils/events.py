@@ -229,6 +229,9 @@ def event_summary(events):
     """
     Per-city roll-up for the report/dashboard: count of episodes and
     spikes, plus the worst peak AQI seen. Takes detect_events() output.
+    Sorted by worst_peak_aqi DESCENDING so the most polluted city leads
+    (the dashboard's "worst city right now" leaderboard uses the same
+    ordering idea on Day 19).
     """
     if events.empty:
         return pd.DataFrame(
@@ -242,8 +245,23 @@ def event_summary(events):
             worst_peak_aqi=("peak_aqi", "max"),
         )
         .reset_index()
+        .sort_values("worst_peak_aqi", ascending=False)
+        .reset_index(drop=True)
     )
     return summary
+
+
+def worst_city(events):
+    """
+    Return the city with the single worst peak AQI across all events
+    (ties broken by total event count). Returns (city, worst_peak_aqi)
+    or (None, None) when there are no events.
+    """
+    if events.empty:
+        return None, None
+    summary = event_summary(events)
+    top = summary.iloc[0]
+    return top["city"], float(top["worst_peak_aqi"])
 
 
 # =========================================================
@@ -282,12 +300,17 @@ def _demo_data(n_days=400, cities=None):
 
 
 def main():
-    """Smoke test: run detection on synthetic data with injected events."""
-    df = _demo_data()
+    """Smoke test: run detection on synthetic data with injected events,
+    across ALL configured cities, and report the worst city."""
+    from src.config import CITIES
+
+    df = _demo_data(cities=list(CITIES.keys()))
     events = detect_events(df)
     print(events.to_string(index=False))
-    print("\nPer-city summary:")
+    print("\nPer-city summary (worst peak first):")
     print(event_summary(events).to_string(index=False))
+    city, peak = worst_city(events)
+    print(f"\nWorst city by peak AQI: {city} ({peak:.1f})")
 
 
 if __name__ == "__main__":
