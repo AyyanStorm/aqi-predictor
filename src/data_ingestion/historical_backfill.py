@@ -134,13 +134,13 @@ def _fetch_city_chunked(lat, lon, start_date, end_date, url, fetch_fn, what, *ex
 def _engineer(df):
     """
     Turn a raw merged frame (date column, city column) into the training
-    frame: datetime index + month column (build_features expects both) →
-    features → targets → restore `date` as a column for the store.
+    frame: datetime index (build_features derives all time columns from
+    it internally — skew guard, roadmap rule 2) → features → targets →
+    restore `date` as a column for the store.
     """
     df = df.copy()
     df[EVENT_TIME_COLUMN] = pd.to_datetime(df[EVENT_TIME_COLUMN], utc=True)
     df = df.set_index(EVENT_TIME_COLUMN).sort_index()
-    df["month"] = df.index.month  # build_features() references df["month"]
     df = build_features(df)
     df = add_targets(df)          # drops tail rows with incomplete targets
     return df.reset_index()       # `date` back to a column (store event time)
