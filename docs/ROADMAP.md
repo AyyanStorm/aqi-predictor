@@ -442,3 +442,42 @@ ci:       pipeline changes
 - [ ] No secrets in git history
 - [ ] Commits on all 28 days
 - [ ] Repo tagged `v1.0.0`
+
+---
+
+## 11. 10Pearls Brief Compliance Map
+
+Every requirement in the official 10Pearls project description (the
+`AQI_predict` PDF) mapped to where it lives in this repo and its status.
+Re-verified 5 Aug 2026 (after Day 10). This is the table to quote in the
+final report — it proves the build covers the brief line by line.
+
+| # | Brief requirement (verbatim intent) | Where it's implemented | Status |
+|---|---|---|---|
+| 1 | Fetch raw weather + pollutant data from an external API (AQICN/OpenWeather were *examples* — "explore other options too") | `src/data_ingestion/open_meteo_client.py` — **Open-Meteo**: free, no key, global, 4+ years history | ✅ done (Day 3) |
+| 2 | Compute features (model inputs) and targets (model outputs) | `src/features/build_features.py` + `src/features/targets.py` | ✅ done (Days 5–6) |
+| 3 | Time-based features: hour, day, month | `local_hour`, `day_of_week`, `month` + sin/cos encodings (`hour_sin/cos`, `dow_sin/cos`, `month_sin/cos`, `is_weekend`) | ✅ done (Day 5) |
+| 4 | Derived features like AQI change rate | `aqi_change_rate_24h` (+ lags, rolling windows, Family B future weather) | ✅ done (Day 5, extended Day 10) |
+| 5 | Store features in a Feature Store (Hopsworks or Vertex AI free tier) | `src/features/feature_store.py` — **Hopsworks** serverless + Parquet fallback adapter | ✅ done (Day 7) |
+| 6 | Backfill historical (features, targets) for training data | `src/data_ingestion/historical_backfill.py` — 10 cities × 4 years, chunked + verified | ✅ done (Day 8) |
+| 7 | Training fetches historical (features, targets) from the Feature Store | `src/training/train.py` `main()` via `get_feature_store().read_features()` | ✅ done (Day 10) |
+| 8 | Experiment with Scikit-learn: Random Forest, Ridge Regression | Ridge: `src/training/train.py`; Random Forest | ✅ Ridge done (Day 10) · RF Day 11 |
+| 9 | TensorFlow/PyTorch for advanced models | LSTM baseline (Keras/TF) | Day 15 |
+| 10 | Evaluate RMSE, MAE, R² | `src/training/evaluate.py` — shared metric functions + walk-forward harness | ✅ done (Day 9) |
+| 11 | Store trained model in a Model Registry | `src/training/model_registry.py` (+ Hopsworks registry, joblib fallback) | Day 14 |
+| 12 | CI/CD: feature script every hour + training script every day (Airflow/GitHub Actions or other) | `.github/workflows/feature_pipeline.yml` + `training_pipeline.yml` (GitHub Actions cron + manual dispatch) | Days 21–22 |
+| 13 | Web app loads model + features, shows predictions on a dashboard | `src/inference/predict.py` + `app/streamlit_app.py` | Days 16–17 |
+| 14 | Use Streamlit/Gradio **and** Flask/FastAPI | `app/streamlit_app.py` + `app/api.py` (`/predict?lat=&lon=` → +24/48/72h JSON) | Days 17–19 |
+| 15 | EDA to identify trends | `notebooks/01_eda.ipynb` + written-up findings (10 cities) | ✅ done (Days 2–4) |
+| 16 | Variety of forecasting models: statistical → deep learning | persistence → seasonal naive → Ridge → Random Forest → LightGBM → LSTM | ✅ baselines + Ridge · rest Days 11–15 |
+| 17 | SHAP or LIME for feature importance | SHAP TreeExplainer in dashboard | Day 20 |
+| 18 | Alerts for hazardous AQI levels | `src/utils/aqi_utils.py` + `app/components/forecast_cards.py` | Day 19 |
+| 19 | Dashboard shows real-time **and** forecasted AQI | Current AQI + +24/48/72h forecast + trends | Days 17–20 |
+| 20 | 100% serverless stack | GitHub Actions + Streamlit Cloud + Hopsworks serverless + Open-Meteo (no Docker/Airflow/MLflow) | ✅ by design (Section 6) |
+| 21 | Final: end-to-end system, automated pipeline, interactive dashboard, detailed report | Repo + `docs/PROJECT_REPORT.md` + README | Days 26–28 |
+| 22 | **Differentiator (KEEP — unique idea): predict for ANY city, not just one** | City-agnostic global model: 10 training cities + unseen-city holdout (Sialkot); dashboard auto-detects location (geolocation → IP → manual search) | ✅ designed Day 1, code Days 16–18. Exceeds the brief's single-city scope — this is what makes the project stand out |
+
+> **Where we exceed the brief:** the brief asks to predict "your city". We
+> predict **every city in Pakistan** (and any lat/lon on Earth) with one
+> city-agnostic model trained on 10 cities, proven by a held-out city the
+> model has never seen. This is deliberate and permanent — see Section 3.
