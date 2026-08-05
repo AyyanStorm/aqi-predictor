@@ -95,6 +95,14 @@ HISTORICAL_START_DATE = "2022-08-06"
 # train.py, and the dashboard — one definition, used everywhere.
 FORECAST_HORIZONS = [24, 48, 72]
 
+# US EPA AQI breakpoints (single source of truth). Used by:
+#   - src/utils/events.py   (Day 10: smog-episode/spike detection)
+#   - src/utils/aqi_utils.py (Day 19: colour bands + health messages)
+#   - the dashboard's hazardous-AQI alert (Day 19)
+AQI_UNHEALTHY = 150          # >= this = "Unhealthy" (orange)
+AQI_VERY_UNHEALTHY = 200     # >= this = "Very Unhealthy" (red)
+AQI_HAZARDOUS = 300          # >= this = "Hazardous" (maroon) -> alert
+
 
 # =========================================================
 # 5. SECRETS

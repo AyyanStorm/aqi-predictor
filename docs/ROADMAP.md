@@ -216,7 +216,9 @@ aqi-predictor/
 │       ├── __init__.py
 │       ├── logger.py                  # structured logging, used everywhere
 │       ├── geo.py                     # geocoding + reverse geocoding
-│       └── aqi_utils.py               # AQI category, colour, health message
+│       ├── aqi_utils.py               # AQI category, colour, health message
+│       ├── events.py                  # smog-episode/spike detection (unique feature, Day 10)
+│       └── explain.py                 # talking SHAP: natural-language "why" (unique feature, Day 20)
 │
 ├── app/
 │   ├── streamlit_app.py               # entrypoint
@@ -332,8 +334,8 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 | 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` |
 | 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` |
 | 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` |
-| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/api.py` | `feat: interactive charts, hazard alerts, and FastAPI endpoint` |
-| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard | — | `feat: SHAP explainability in dashboard` |
+| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; **live 10-city leaderboard** ("worst city right now", unique feature); FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/components/leaderboard.py`, `app/api.py` | `feat: interactive charts, hazard alerts, city leaderboard, and FastAPI endpoint` |
+| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard; **talking SHAP** — natural-language "why" sentence per forecast (unique feature); **smog-season event annotations** on trend charts (from `events.py`, already shipped) | `src/utils/explain.py`, `app/components/explanation.py` | `feat: SHAP explainability, talking SHAP, and event annotations in dashboard` |
 
 ### Phase 4 — Automation (Days 21–24)
 
@@ -433,6 +435,9 @@ ci:       pipeline changes
 - [ ] RMSE, MAE and R² reported per horizon, versus a naive baseline
 - [ ] Unseen-city holdout results published — proves the "works anywhere" claim
 - [ ] SHAP explanations visible in the dashboard
+- [ ] Talking SHAP: natural-language "why" sentence per forecast (unique feature)
+- [ ] Live 10-city leaderboard ("worst city right now") on the dashboard (unique feature)
+- [ ] Smog-season event annotations on trend charts (from `events.py`)
 - [ ] Hazardous-AQI alert triggers above threshold
 - [ ] Time-based features cover hour, day-of-week, and month (brief requirement) — asserted in tests
 - [ ] EDA notebook committed with findings written up
