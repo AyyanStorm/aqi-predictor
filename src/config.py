@@ -72,6 +72,9 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 # Weather variables pulled from ARCHIVE_URL (history) and, later, FORECAST_URL
 # (future). Wind is the single most important driver of AQI after the
 # pollutants themselves — it controls how fast pollution disperses.
+# boundary_layer_height is the altitude of the atmospheric mixing layer;
+# a low (night-time) boundary layer traps pollution, a high one disperses
+# it — listed in the roadmap's Family B feature set.
 WEATHER_VARIABLES = [
     "temperature_2m",
     "wind_speed_10m",
@@ -79,6 +82,7 @@ WEATHER_VARIABLES = [
     "relative_humidity_2m",
     "surface_pressure",
     "precipitation",
+    "boundary_layer_height",
 ]
 
 
