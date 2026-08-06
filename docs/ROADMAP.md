@@ -323,7 +323,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 | 10 | Wed 5 Aug | Linear & Ridge regression: the maths, regularisation, scaling, coefficient interpretation | `src/training/train.py` | `feat: ridge regression training pipeline` | ✅ done |
 | 11 | Thu 6 Aug | Decision trees → Random Forest: bagging, feature importance, hyperparameters | — | `feat: random forest model` | ✅ done |
 | 12 | Fri 7 Aug | Gradient boosting / LightGBM: how boosting differs from bagging, key hyperparameters | — | `feat: lightgbm model, best RMSE so far` | ✅ done |
-| 13 | Sat 8 Aug | Walk-forward backtesting, hyperparameter tuning, unseen-city holdout evaluation | — | `feat: walk-forward backtesting and tuning` | ⬜ |
+| 13 | Sat 8 Aug | Walk-forward backtesting, hyperparameter tuning, unseen-city holdout evaluation | `src/training/tune.py` | `feat: walk-forward backtesting and tuning` | ✅ done |
 | 14 | Sun 9 Aug | Model Registry: serialisation, versioning, metadata, promotion logic | `src/training/model_registry.py` | `feat: model registry with automated promotion` | ⬜ |
 | 15 | Mon 10 Aug | LSTM in Keras: sequences, windowing, why RNNs suit time series; honest comparison vs LightGBM | — | `feat: LSTM baseline for model comparison` | ⬜ |
 
