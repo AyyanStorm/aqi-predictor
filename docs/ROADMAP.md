@@ -295,65 +295,65 @@ aqi-predictor/
 
 ## 7. The 28-Day Plan
 
-Legend: **NEW** = files/folders you create that day · **Commit** = the git commit message you end the day with.
+Legend: **NEW** = files/folders you create that day · **Commit** = the git commit message you end the day with · **Status** = ✅ done when the day's work is merged, ⬜ pending otherwise.
 
 ### Phase 0 — Foundation (Days 1–3)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 1 | Mon 27 Jul | Git hygiene, secrets, project skeleton, read your own code line-by-line | `.gitignore`, `requirements.txt`, `README.md`, `src/`, `src/config.py`, `docs/`, `data/`, `.env.example` | `chore: project skeleton, gitignore, config module` |
-| 2 | Tue 28 Jul | Python + pandas fluency on real data; DataFrame, index, dtypes, datetime, groupby, resample | `notebooks/01_eda.ipynb` | `feat: initial EDA notebook` |
-| 3 | Wed 29 Jul | Refactor ingestion: API client, multi-city loop, wind/humidity/pressure/boundary-layer height, timezone handling, logging | `src/data_ingestion/open_meteo_client.py`, `src/utils/logger.py`, refactored `historical_backfill.py` | `refactor: modular multi-city ingestion with full weather variables` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 1 | Mon 27 Jul | Git hygiene, secrets, project skeleton, read your own code line-by-line | `.gitignore`, `requirements.txt`, `README.md`, `src/`, `src/config.py`, `docs/`, `data/`, `.env.example` | `chore: project skeleton, gitignore, config module` | ✅ done |
+| 2 | Tue 28 Jul | Python + pandas fluency on real data; DataFrame, index, dtypes, datetime, groupby, resample | `notebooks/01_eda.ipynb` | `feat: initial EDA notebook` | ✅ done |
+| 3 | Wed 29 Jul | Refactor ingestion: API client, multi-city loop, wind/humidity/pressure/boundary-layer height, timezone handling, logging | `src/data_ingestion/open_meteo_client.py`, `src/utils/logger.py`, refactored `historical_backfill.py` | `refactor: modular multi-city ingestion with full weather variables` | ✅ done |
 
 ### Phase 1 — Data & Features (Days 4–8)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 4 | Thu 30 Jul | EDA deep-dive: distributions, seasonality, diurnal cycle, correlations, missing data, outliers | (extend notebook) | `docs: EDA findings and visualisations` |
-| 5 | Fri 31 Jul | Feature engineering: lags, rolling windows, cyclical encoding for hour/day-of-week/month (sin/cos), AQI change rate, Family B future-weather features at t+24/48/72. ALL time columns derived from the index inside the function (no caller-supplied `month` — skew guard). | `src/features/build_features.py` | `feat: feature engineering module` |
-| 6 | Sat 1 Aug | Target construction + leakage audit; walk-forward split design | `src/features/targets.py` | `feat: multi-horizon target construction` |
-| 7 | Sun 2 Aug | Hopsworks account, feature group schema, primary key & event-time design | `src/features/feature_store.py` | `feat: Hopsworks feature store integration` |
-| 8 | Mon 3 Aug | Run the full 10-city 4-year backfill into the Feature Store; verify row counts and nulls | — | `feat: complete historical backfill to feature store` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 4 | Thu 30 Jul | EDA deep-dive: distributions, seasonality, diurnal cycle, correlations, missing data, outliers | (extend notebook) | `docs: EDA findings and visualisations` | ✅ done |
+| 5 | Fri 31 Jul | Feature engineering: lags, rolling windows, cyclical encoding for hour/day-of-week/month (sin/cos), AQI change rate, Family B future-weather features at t+24/48/72. ALL time columns derived from the index inside the function (no caller-supplied `month` — skew guard). | `src/features/build_features.py` | `feat: feature engineering module` | ✅ done |
+| 6 | Sat 1 Aug | Target construction + leakage audit; walk-forward split design | `src/features/targets.py` | `feat: multi-horizon target construction` | ✅ done |
+| 7 | Sun 2 Aug | Hopsworks account, feature group schema, primary key & event-time design | `src/features/feature_store.py` | `feat: Hopsworks feature store integration` | ✅ done |
+| 8 | Mon 3 Aug | Run the full 10-city 4-year backfill into the Feature Store; verify row counts and nulls | — | `feat: complete historical backfill to feature store` | ✅ done |
 
 ### Phase 2 — Modeling (Days 9–15)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 9 | Tue 4 Aug | ML fundamentals: bias/variance, overfitting, why time-series CV ≠ random CV; build baselines (persistence, seasonal naive) | `notebooks/03_model_experiments.ipynb`, `src/training/evaluate.py` | `feat: evaluation harness and naive baselines` |
-| 10 | Wed 5 Aug | Linear & Ridge regression: the maths, regularisation, scaling, coefficient interpretation | `src/training/train.py` | `feat: ridge regression training pipeline` |
-| 11 | Thu 6 Aug | Decision trees → Random Forest: bagging, feature importance, hyperparameters | — | `feat: random forest model` |
-| 12 | Fri 7 Aug | Gradient boosting / LightGBM: how boosting differs from bagging, key hyperparameters | — | `feat: lightgbm model, best RMSE so far` |
-| 13 | Sat 8 Aug | Walk-forward backtesting, hyperparameter tuning, unseen-city holdout evaluation | — | `feat: walk-forward backtesting and tuning` |
-| 14 | Sun 9 Aug | Model Registry: serialisation, versioning, metadata, promotion logic | `src/training/model_registry.py` | `feat: model registry with automated promotion` |
-| 15 | Mon 10 Aug | LSTM in Keras: sequences, windowing, why RNNs suit time series; honest comparison vs LightGBM | — | `feat: LSTM baseline for model comparison` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 9 | Tue 4 Aug | ML fundamentals: bias/variance, overfitting, why time-series CV ≠ random CV; build baselines (persistence, seasonal naive) | `notebooks/03_model_experiments.ipynb`, `src/training/evaluate.py` | `feat: evaluation harness and naive baselines` | ✅ done |
+| 10 | Wed 5 Aug | Linear & Ridge regression: the maths, regularisation, scaling, coefficient interpretation | `src/training/train.py` | `feat: ridge regression training pipeline` | ✅ done |
+| 11 | Thu 6 Aug | Decision trees → Random Forest: bagging, feature importance, hyperparameters | — | `feat: random forest model` | ✅ done |
+| 12 | Fri 7 Aug | Gradient boosting / LightGBM: how boosting differs from bagging, key hyperparameters | — | `feat: lightgbm model, best RMSE so far` | ✅ done |
+| 13 | Sat 8 Aug | Walk-forward backtesting, hyperparameter tuning, unseen-city holdout evaluation | — | `feat: walk-forward backtesting and tuning` | ⬜ |
+| 14 | Sun 9 Aug | Model Registry: serialisation, versioning, metadata, promotion logic | `src/training/model_registry.py` | `feat: model registry with automated promotion` | ⬜ |
+| 15 | Mon 10 Aug | LSTM in Keras: sequences, windowing, why RNNs suit time series; honest comparison vs LightGBM | — | `feat: LSTM baseline for model comparison` | ⬜ |
 
 ### Phase 3 — Serving (Days 16–20)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` |
-| 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` |
-| 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` |
-| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; **live 10-city leaderboard** ("worst city right now", unique feature); FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/components/leaderboard.py`, `app/api.py` | `feat: interactive charts, hazard alerts, city leaderboard, and FastAPI endpoint` |
-| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard; **talking SHAP** — natural-language "why" sentence per forecast (unique feature); **smog-season event annotations** on trend charts (from `events.py`, already shipped) | `src/utils/explain.py`, `app/components/explanation.py` | `feat: SHAP explainability, talking SHAP, and event annotations in dashboard` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` | ⬜ |
+| 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` | ⬜ |
+| 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` | ⬜ |
+| 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; **live 10-city leaderboard** ("worst city right now", unique feature); FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/components/leaderboard.py`, `app/api.py` | `feat: interactive charts, hazard alerts, city leaderboard, and FastAPI endpoint` | ⬜ |
+| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard; **talking SHAP** — natural-language "why" sentence per forecast (unique feature); **smog-season event annotations** on trend charts (from `events.py`, already shipped) | `src/utils/explain.py`, `app/components/explanation.py` | `feat: SHAP explainability, talking SHAP, and event annotations in dashboard` | ⬜ |
 
 ### Phase 4 — Automation (Days 21–24)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 21 | Sun 16 Aug | GitHub Actions concepts: workflows, triggers, cron, secrets; hourly feature pipeline | `.github/workflows/feature_pipeline.yml` | `ci: hourly automated feature pipeline` |
-| 22 | Mon 17 Aug | Daily training workflow + automatic model promotion; watch a real run succeed | `.github/workflows/training_pipeline.yml` | `ci: daily automated retraining` |
-| 23 | Tue 18 Aug | Deploy to Streamlit Community Cloud; secrets in production; debug the inevitable breakage | — | `chore: production deployment configuration` |
-| 24 | Wed 19 Aug | Robustness: retries, timeouts, graceful degradation, structured logs, failure notifications | — | `feat: production error handling and observability` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 21 | Sun 16 Aug | GitHub Actions concepts: workflows, triggers, cron, secrets; hourly feature pipeline | `.github/workflows/feature_pipeline.yml` | `ci: hourly automated feature pipeline` | ⬜ |
+| 22 | Mon 17 Aug | Daily training workflow + automatic model promotion; watch a real run succeed | `.github/workflows/training_pipeline.yml` | `ci: daily automated retraining` | ⬜ |
+| 23 | Tue 18 Aug | Deploy to Streamlit Community Cloud; secrets in production; debug the inevitable breakage | — | `chore: production deployment configuration` | ⬜ |
+| 24 | Wed 19 Aug | Robustness: retries, timeouts, graceful degradation, structured logs, failure notifications | — | `feat: production error handling and observability` | ⬜ |
 
 ### Phase 5 — Proof & Polish (Days 25–28)
 
-| Day | Date | Theme | NEW | Commit |
-|---|---|---|---|---|
-| 25 | Thu 20 Aug | pytest: unit tests for features, AQI utils, inference; CI workflow | `tests/*`, `.github/workflows/ci.yml` | `test: unit test suite and CI` |
-| 26 | Fri 21 Aug | README with architecture diagram, screenshots, setup instructions, results table | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` |
-| 27 | Sat 22 Aug | Project report: problem, approach, experiments, results, limitations, future work | `docs/PROJECT_REPORT.md` | `docs: final project report` |
-| 28 | Sun 23 Aug | Full review, README screenshots, verify every scheduled run is green, tag and submit to Shine portal | — | `chore: v1.0.0 final submission` |
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 25 | Thu 20 Aug | pytest: unit tests for features, AQI utils, inference; CI workflow | `tests/*`, `.github/workflows/ci.yml` | `test: unit test suite and CI` | ⬜ |
+| 26 | Fri 21 Aug | README with architecture diagram, screenshots, setup instructions, results table | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` | ⬜ |
+| 27 | Sat 22 Aug | Project report: problem, approach, experiments, results, limitations, future work | `docs/PROJECT_REPORT.md` | `docs: final project report` | ⬜ |
+| 28 | Sun 23 Aug | Full review, README screenshots, verify every scheduled run is green, tag and submit to Shine portal | — | `chore: v1.0.0 final submission` | ⬜ |
 
 ### Built-in slack
 
