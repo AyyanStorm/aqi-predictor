@@ -1,11 +1,13 @@
 """
-train.py — Ridge regression training pipeline (Day 10 deliverable).
+train.py — Ridge + Random Forest training pipeline (Days 10-11 deliverable).
 
-Day 10's theme is linear models: the maths, regularisation, scaling and
-coefficient interpretation. This module is the first REAL model in the
-project — it plugs into Day 9's walk-forward harness (evaluate.py), so
-Ridge is compared apples-to-apples against the persistence and seasonal
-naive baselines on the SAME folds.
+Day 10 added linear models: Ridge regression with the maths, regularisation,
+scaling and coefficient interpretation. Day 11 adds tree ensembles: Random
+Forest via bagging, feature importance and hyperparameters.
+
+Both models plug into Day 9's walk-forward harness (evaluate.py), so they
+are compared apples-to-apples against the persistence and seasonal naive
+baselines on the SAME folds — and against each other.
 
 The maths, briefly (roadmap Day 10):
     OLS:          min ||y - Xw||^2            -> closed form (X^T X)^{-1} X^T y
@@ -15,35 +17,70 @@ The maths, briefly (roadmap Day 10):
       exactly the bias/variance trade-off from Day 9. AQI lags are
       heavily correlated, which is precisely where Ridge beats OLS.
 
-Why scaling matters (Day 10 theme):
+Why scaling matters (Day 10 theme, and why RF does NOT need it):
     The L2 penalty punishes the SIZE of coefficients, so a feature measured
     in big numbers (e.g. surface_pressure ~1000) dominates one measured in
     small numbers (e.g. precipitation ~0-10) for no modelling reason.
     StandardScaler puts every feature on unit variance BEFORE Ridge, so the
-    penalty is fair and the coefficients become directly comparable:
-    "effect on AQI per standard deviation of the feature". The scaler is
-    fit on the training fold ONLY — never on validation — so no information
-    leaks from the future into the scaler (leakage rule, roadmap Section 2).
+    penalty is fair and the coefficients become directly comparable.
+    Random Forest is scale-INVARIANT: each tree splits on one feature at a
+    time, so absolute magnitudes don't matter. No scaler needed — a useful
+    contrast that makes the "why scaling" lesson stick.
+
+Day 11 theme — Random Forest via bagging:
+    A single deep decision tree overfits: it can split until every leaf
+    holds one training point. Bagging (bootstrap AGGregatING) fixes this by
+    variance reduction:
+      1. Draw B bootstrap samples (sample WITH replacement) from the train set.
+      2. Grow a deep tree on each sample.
+      3. Average the B trees' predictions.
+    E[avg] = E[single tree] (bias unchanged), but Var[avg] ~ Var/tree / B
+    (variance shrinks ~linearly with B). Random Forest goes one step further:
+    each split only considers a random subset of features (max_features),
+    which decorrelates the trees — correlated errors don't average away.
+
+    Feature importance (feature_importances_): each node split reduces
+    impurity (here MSE); that reduction is weighted by node size and
+    accumulated per feature across all trees, then normalised to sum to 1.
+    It answers "which features does the forest actually split on to reduce
+    error" — the first non-linear signal of what matters, to be cross-checked
+    against SHAP on Day 20.
+
+    Key hyperparameters:
+      n_estimators      — number of trees B. More trees = lower variance,
+                          diminishing returns past ~200-500.
+      max_depth         — None = grow trees to pure leaves (bagging handles
+                          the variance). Shallower = more bias, less variance.
+      min_samples_leaf  — minimum samples to be a leaf. Higher = smoother,
+                          more regularised trees.
+      max_features      — size of the random split-feature subset (1/3 default
+                          for regression). The core "random" in Random Forest.
+      n_jobs / random_state — parallel training / reproducibility.
 
 What this module provides:
-    1. select_features()       — the feature list. City is NEVER a feature
-                                 (roadmap Section 3: city-agnostic global model).
-    2. train_ridge_models()    — one (StandardScaler + Ridge) pipeline per
-                                 horizon: y_24, y_48, y_72. Three targets ->
-                                 three models, exactly as the roadmap prescribes.
-    3. ridge_fit_predict()     — the fit_predict(train_df, valid_df) contract
-                                 walk_forward_evaluate() expects.
-    4. coefficient_table()     — coefficient interpretation: which features
-                                 push AQI up/down, ranked by |coef|.
-    5. main()                  — CLI: load the feature store (or demo data),
-                                 audit leakage, walk-forward evaluation vs
-                                 baselines, print results + top coefficients.
+    1. select_features()        — the feature list. City is NEVER a feature
+                                  (roadmap Section 3: city-agnostic global model).
+    2. train_ridge_models()     — one (StandardScaler + Ridge) pipeline per
+                                  horizon: y_24, y_48, y_72. Three targets ->
+                                  three models, exactly as the roadmap prescribes.
+    3. ridge_fit_predict()      — the fit_predict(train_df, valid_df) contract
+                                  walk_forward_evaluate() expects.
+    4. train_rf_models()        — one RandomForestRegressor per horizon (no
+                                  scaler — trees are scale-invariant).
+    5. rf_fit_predict()         — same contract as ridge_fit_predict, so the
+                                  harness treats both models identically.
+    6. coefficient_table()      — Ridge: which features push AQI up/down, |coef|.
+    7. feature_importance_table()— RF: which features reduce error, ranked.
+    8. main()                   — CLI: load feature store (or demo data), audit
+                                  leakage, walk-forward evaluation vs baselines,
+                                  print results + per-model interpretation.
 """
 
 import argparse
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -171,6 +208,116 @@ def ridge_fit_predict(train_df, valid_df, alpha=1.0, feature_cols=None):
     return preds
 
 
+def train_rf_models(train_df, feature_cols=None, n_estimators=300,
+                    max_depth=None, min_samples_leaf=2, max_features=1.0/3.0,
+                    n_jobs=-1, random_state=42):
+    """
+    Fit one RandomForestRegressor per forecast horizon (Day 11 deliverable).
+
+    Bagging in action (roadmap Day 11): each tree trains on a bootstrap
+    sample (sampled WITH replacement) of the training rows, and each split
+    only sees a random subset of features (max_features). Averaging the
+    trees keeps bias at the single-tree level while slashing variance —
+    the exact fix for the overfitting a lone deep decision tree would do.
+
+    Unlike Ridge, NO scaler is needed: trees split one feature at a time
+    on absolute values, so they are scale-invariant. That is the teaching
+    contrast with Day 10's StandardScaler.
+
+    Returns
+    -------
+    dict[int, RandomForestRegressor]
+        {horizon: fitted forest}. Same NaN-drop policy as Ridge (rows with
+        missing feature or target are dropped honestly, never imputed).
+    """
+    if feature_cols is None:
+        feature_cols = select_features(train_df)
+    missing = [c for c in feature_cols + [f"{_TARGET_PREFIX}{h}" for h in FORECAST_HORIZONS]
+               if c not in train_df.columns]
+    if missing:
+        raise ValueError(
+            f"train_df is missing columns {missing} — run build_features() and "
+            f"add_targets() first (see src/features/)."
+        )
+
+    models = {}
+    for h in FORECAST_HORIZONS:
+        target_col = f"{_TARGET_PREFIX}{h}"
+        clean = train_df[[*feature_cols, target_col]].dropna()
+        if len(clean) == 0:
+            raise ValueError(f"No complete training rows for horizon {h}h — "
+                             f"check data window vs warm-up length.")
+
+        X, y = clean[feature_cols], clean[target_col]
+        forest = RandomForestRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
+            n_jobs=n_jobs,
+            random_state=random_state,
+        )
+        forest.fit(X, y)
+        models[h] = forest
+        logger.info(f"Horizon {h}h: RandomForest(n_estimators={n_estimators}, "
+                    f"max_depth={max_depth}, min_samples_leaf={min_samples_leaf}) "
+                    f"on {len(clean)} rows, {len(feature_cols)} features")
+    return models
+
+
+def rf_fit_predict(train_df, valid_df, feature_cols=None, **rf_kwargs):
+    """
+    The fit_predict(train_df, valid_df) contract for walk_forward_evaluate().
+
+    Identical shape to ridge_fit_predict(): train one forest per horizon,
+    predict every horizon for valid_df, return a DataFrame with one column
+    per horizon aligned to valid_df.index. The harness therefore scores
+    Ridge and Random Forest on the SAME folds, same rows, same metrics —
+    apples-to-apples (roadmap Day 11: compare models, not harnesses).
+    """
+    if feature_cols is None:
+        feature_cols = select_features(train_df)
+    models = train_rf_models(train_df, feature_cols=feature_cols, **rf_kwargs)
+
+    preds = pd.DataFrame(index=valid_df.index)
+    for h, forest in models.items():
+        target_col = f"{_TARGET_PREFIX}{h}"
+        X_valid = valid_df[feature_cols]
+        complete = X_valid.notna().all(axis=1)
+        preds[target_col] = np.nan
+        if complete.any():
+            preds.loc[complete, target_col] = forest.predict(X_valid.loc[complete])
+    return preds
+
+
+def feature_importance_table(models, feature_cols):
+    """
+    Random Forest feature importances (Day 11 theme).
+
+    Each node split reduces impurity (MSE for regression); the reduction is
+    weighted by the number of rows reaching the node and accumulated per
+    feature across ALL trees, then normalised to sum to 1. High importance
+    = the forest relies on this feature to reduce error. This is the first
+    non-linear "what actually matters" signal, to be cross-checked against
+    SHAP on Day 20 (SHAP is more trustworthy — importance can favour
+    high-cardinality features).
+
+    Returns a DataFrame: one row per (horizon, feature), ranked by
+    importance within each horizon.
+    """
+    rows = []
+    for h, forest in models.items():
+        importances = np.asarray(forest.feature_importances_).ravel()
+        for feat, imp in zip(feature_cols, importances):
+            rows.append({"horizon_h": h, "feature": feat, "importance": float(imp)})
+    table = (
+        pd.DataFrame(rows)
+        .sort_values(["horizon_h", "importance"], ascending=[True, False])
+        .reset_index(drop=True)
+    )
+    return table
+
+
 def coefficient_table(models, feature_cols):
     """
     Coefficient interpretation (Day 10 theme).
@@ -203,40 +350,64 @@ def coefficient_table(models, feature_cols):
     return table
 
 
-def _print_results(baseline_results, ridge_results, coefs, top_k=10):
-    """Pretty-print the comparison table + top coefficient drivers."""
+def _print_results(baseline_results, model_results, top_k=10, model_name="MODEL",
+                   importance_table=None):
+    """Pretty-print the comparison table + per-model interpretation.
+
+    model_results: walk-forward results frame (one row per fold_cut).
+    importance_table: for RF — feature importances; None for Ridge (which
+    prints coefficients instead). Both are derived from a full-data refit.
+    """
     print("\n" + "=" * 62)
     print("NAIVE BASELINES (the floor any model must beat) — RMSE")
     print("=" * 62)
     print(baseline_results.pivot(index="horizon_h", columns="baseline",
                                  values="rmse").round(1).to_string())
     print("\n" + "=" * 62)
-    print("RIDGE — walk-forward evaluation (mean across folds) — RMSE/MAE/R2")
+    print(f"{model_name} — walk-forward evaluation (mean across folds) — RMSE/MAE/R2")
     print("=" * 62)
-    mean = ridge_results[ridge_results["fold_cut"] == "mean"]
+    mean = model_results[model_results["fold_cut"] == "mean"]
     print(mean[["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False))
 
-    print("\n" + "=" * 62)
-    print(f"TOP {top_k} COEFFICIENT DRIVERS PER HORIZON (standardised)")
-    print("=" * 62)
-    for h in FORECAST_HORIZONS:
-        top = coefs[coefs["horizon_h"] == h].head(top_k)
-        print(f"\n+{h}h:")
-        for _, row in top.iterrows():
-            sign = "+" if row["coefficient"] >= 0 else "-"
-            print(f"  {sign} {abs(row['coefficient']):8.2f}  {row['feature']}")
+    if importance_table is None or "importance" not in importance_table.columns:
+        print("\n" + "=" * 62)
+        print(f"TOP {top_k} COEFFICIENT DRIVERS PER HORIZON (standardised)")
+        print("=" * 62)
+        for h in FORECAST_HORIZONS:
+            top = importance_table[importance_table["horizon_h"] == h].head(top_k)
+            print(f"\n+{h}h:")
+            for _, row in top.iterrows():
+                sign = "+" if row["coefficient"] >= 0 else "-"
+                print(f"  {sign} {abs(row['coefficient']):8.2f}  {row['feature']}")
+    else:
+        print("\n" + "=" * 62)
+        print(f"TOP {top_k} FEATURE IMPORTANCES PER HORIZON (Random Forest)")
+        print("=" * 62)
+        for h in FORECAST_HORIZONS:
+            top = importance_table[importance_table["horizon_h"] == h].head(top_k)
+            print(f"\n+{h}h:")
+            for _, row in top.iterrows():
+                print(f"  {row['importance']:7.3f}  {row['feature']}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Day 10: Ridge regression training pipeline (walk-forward)."
+        description="Days 10-11: Ridge + Random Forest training pipeline (walk-forward)."
     )
     parser.add_argument("--alpha", type=float, default=1.0,
                         help="Ridge L2 regularisation strength (default 1.0)")
+    parser.add_argument("--model", choices=["ridge", "rf", "both"], default="both",
+                        help="Which model to run (default: both, compared on same folds)")
+    parser.add_argument("--n-estimators", type=int, default=300,
+                        help="Random Forest: number of trees (default 300)")
+    parser.add_argument("--max-depth", type=int, default=None,
+                        help="Random Forest: max tree depth (default None = full grow, bagging handles variance)")
+    parser.add_argument("--min-samples-leaf", type=int, default=2,
+                        help="Random Forest: min samples per leaf (default 2)")
     parser.add_argument("--n-splits", type=int, default=4,
                         help="Walk-forward folds (default 4)")
     parser.add_argument("--top-k", type=int, default=10,
-                        help="Coefficient drivers to print per horizon")
+                        help="Coefficient/importance drivers to print per horizon")
     parser.add_argument("--demo", action="store_true",
                         help="Force synthetic demo data (skip the feature store)")
     args = parser.parse_args()
@@ -282,23 +453,43 @@ def main():
     for warning in audit["warnings"]:
         logger.warning(warning)
 
-    # 4. Baselines + Ridge on the SAME walk-forward folds.
+    # 4. Baselines + selected models on the SAME walk-forward folds.
     feature_cols = select_features(df)
     logger.info(f"Features ({len(feature_cols)}): {feature_cols}")
     baseline_results = evaluate_baselines(df)
-    ridge_results = walk_forward_evaluate(
-        df,
-        lambda tr, va: ridge_fit_predict(tr, va, alpha=args.alpha,
-                                         feature_cols=feature_cols),
-        n_splits=args.n_splits,
-    )
 
-    # 5. Refit on ALL data for the coefficient story (interpretation only —
-    #    the honest numbers are the walk-forward ones above).
-    full_models = train_ridge_models(df, feature_cols=feature_cols, alpha=args.alpha)
-    coefs = coefficient_table(full_models, feature_cols)
+    if args.model in ("ridge", "both"):
+        ridge_results = walk_forward_evaluate(
+            df,
+            lambda tr, va: ridge_fit_predict(tr, va, alpha=args.alpha,
+                                             feature_cols=feature_cols),
+            n_splits=args.n_splits,
+        )
+        full_ridge = train_ridge_models(df, feature_cols=feature_cols, alpha=args.alpha)
+        coefs = coefficient_table(full_ridge, feature_cols)
+        _print_results(baseline_results, ridge_results, top_k=args.top_k,
+                       model_name="RIDGE", importance_table=coefs)
 
-    _print_results(baseline_results, ridge_results, coefs, top_k=args.top_k)
+    if args.model in ("rf", "both"):
+        rf_results = walk_forward_evaluate(
+            df,
+            lambda tr, va: rf_fit_predict(
+                tr, va, feature_cols=feature_cols,
+                n_estimators=args.n_estimators,
+                max_depth=args.max_depth,
+                min_samples_leaf=args.min_samples_leaf,
+            ),
+            n_splits=args.n_splits,
+        )
+        full_rf = train_rf_models(
+            df, feature_cols=feature_cols,
+            n_estimators=args.n_estimators,
+            max_depth=args.max_depth,
+            min_samples_leaf=args.min_samples_leaf,
+        )
+        importances = feature_importance_table(full_rf, feature_cols)
+        _print_results(baseline_results, rf_results, top_k=args.top_k,
+                       model_name="RANDOM FOREST", importance_table=importances)
 
 
 if __name__ == "__main__":
