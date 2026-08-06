@@ -1,11 +1,12 @@
 """
-train.py — Ridge + Random Forest training pipeline (Days 10-11 deliverable).
+train.py — Ridge + Random Forest + LightGBM training pipeline (Days 10-12).
 
 Day 10 added linear models: Ridge regression with the maths, regularisation,
-scaling and coefficient interpretation. Day 11 adds tree ensembles: Random
-Forest via bagging, feature importance and hyperparameters.
+scaling and coefficient interpretation. Day 11 added tree ensembles: Random
+Forest via bagging, feature importance and hyperparameters. Day 12 adds
+LightGBM: gradient boosting, how it differs from bagging, key hyperparameters.
 
-Both models plug into Day 9's walk-forward harness (evaluate.py), so they
+All models plug into Day 9's walk-forward harness (evaluate.py), so they
 are compared apples-to-apples against the persistence and seasonal naive
 baselines on the SAME folds — and against each other.
 
@@ -17,17 +18,17 @@ The maths, briefly (roadmap Day 10):
       exactly the bias/variance trade-off from Day 9. AQI lags are
       heavily correlated, which is precisely where Ridge beats OLS.
 
-Why scaling matters (Day 10 theme, and why RF does NOT need it):
+Why scaling matters (Day 10 theme, and why tree models do NOT need it):
     The L2 penalty punishes the SIZE of coefficients, so a feature measured
     in big numbers (e.g. surface_pressure ~1000) dominates one measured in
     small numbers (e.g. precipitation ~0-10) for no modelling reason.
     StandardScaler puts every feature on unit variance BEFORE Ridge, so the
     penalty is fair and the coefficients become directly comparable.
-    Random Forest is scale-INVARIANT: each tree splits on one feature at a
-    time, so absolute magnitudes don't matter. No scaler needed — a useful
-    contrast that makes the "why scaling" lesson stick.
+    Random Forest AND LightGBM are scale-INVARIANT: trees split on one
+    feature at a time, so absolute magnitudes don't matter. No scaler
+    needed — a useful contrast that makes the "why scaling" lesson stick.
 
-Day 11 theme — Random Forest via bagging:
+Day 11 theme — Random Forest via bagging (variance reduction):
     A single deep decision tree overfits: it can split until every leaf
     holds one training point. Bagging (bootstrap AGGregatING) fixes this by
     variance reduction:
@@ -46,16 +47,42 @@ Day 11 theme — Random Forest via bagging:
     error" — the first non-linear signal of what matters, to be cross-checked
     against SHAP on Day 20.
 
+Day 12 theme — LightGBM / gradient boosting (bias reduction):
+    Boosting is the OPPOSITE philosophy to bagging. Instead of averaging
+    independent trees, boosting builds trees SEQUENTIALLY, and each new
+    tree fits the NEGATIVE GRADIENT of the loss — i.e. the residual errors
+    the ensemble has made so far:
+      1. Start with a weak constant prediction (the mean).
+      2. Fit a SHALLOW tree to the residuals: pred - y.
+      3. Add it with a small learning_rate (shrinkage): pred += lr * tree.
+      4. Repeat; each tree fixes what the previous ones got wrong.
+    Bagging reduces VARIANCE (averaging noisy experts); boosting reduces
+    BIAS (each round learns from mistakes). This is why boosting usually
+    wins on tabular data: it can chase fine structure that bagging's
+    averaging smooths away.
+
+    Why LightGBM specifically (vs plain gradient boosting):
+      - Histogram-based splits: bins continuous features, so split finding
+        is O(bins) not O(rows) — an order-of-magnitude speedup.
+      - Leaf-wise (not level-wise) growth: expands the leaf with the best
+        loss reduction, so it fits deeper where it matters.
+      - Native NaN handling and categorical support.
+
     Key hyperparameters:
-      n_estimators      — number of trees B. More trees = lower variance,
-                          diminishing returns past ~200-500.
-      max_depth         — None = grow trees to pure leaves (bagging handles
-                          the variance). Shallower = more bias, less variance.
-      min_samples_leaf  — minimum samples to be a leaf. Higher = smoother,
-                          more regularised trees.
-      max_features      — size of the random split-feature subset (1/3 default
-                          for regression). The core "random" in Random Forest.
-      n_jobs / random_state — parallel training / reproducibility.
+      n_estimators        — number of boosting rounds (trees).
+      learning_rate       — shrinkage per round. Lower = each tree adds less,
+                            needs more rounds, less overfitting. lr 0.05-0.1
+                            with 300-1000 rounds is the classic combo.
+      num_leaves          — max leaves per tree; the LightGBM equivalent of
+                            max_depth (a depth-d tree can have 2^d leaves).
+                            Bigger = more capacity = more overfitting risk.
+      min_child_samples   — min rows per leaf; larger = smoother trees.
+      subsample           — row sampling per round (bagging-like, adds
+                            variance reduction on top of boosting).
+      colsample_bytree    — feature sampling per tree (decorrelates rounds).
+      reg_alpha / reg_lambda — L1/L2 regularisation on the leaf weights.
+    Day 13 (tomorrow) grid-searches these properly; today we ship the model
+    with sensible defaults and get the honest walk-forward numbers.
 
 What this module provides:
     1. select_features()        — the feature list. City is NEVER a feature
@@ -69,12 +96,25 @@ What this module provides:
                                   scaler — trees are scale-invariant).
     5. rf_fit_predict()         — same contract as ridge_fit_predict, so the
                                   harness treats both models identically.
-    6. coefficient_table()      — Ridge: which features push AQI up/down, |coef|.
-    7. feature_importance_table()— RF: which features reduce error, ranked.
-    8. main()                   — CLI: load feature store (or demo data), audit
+    6. train_lgbm_models()      — one LGBMRegressor per horizon (gain-based
+                                  feature importance).
+    7. lgbm_fit_predict()       — same fit_predict contract.
+    8. coefficient_table()      — Ridge: which features push AQI up/down, |coef|.
+    9. feature_importance_table()— RF/LGBM: which features reduce error, ranked.
+    10. main()                  — CLI: load feature store (or demo data), audit
                                   leakage, walk-forward evaluation vs baselines,
                                   print results + per-model interpretation.
 """
+
+import argparse
+
+import numpy as np
+import pandas as pd
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 import argparse
 
@@ -318,6 +358,100 @@ def feature_importance_table(models, feature_cols):
     return table
 
 
+def train_lgbm_models(train_df, feature_cols=None, n_estimators=500,
+                      learning_rate=0.05, num_leaves=31, min_child_samples=20,
+                      subsample=0.9, colsample_bytree=0.9, n_jobs=-1,
+                      random_state=42, verbosity=-1):
+    """
+    Fit one LGBMRegressor per forecast horizon (Day 12 deliverable).
+
+    Gradient boosting in action: trees are built SEQUENTIALLY, each one
+    fitting the negative gradient (residuals) of the ensemble so far, with
+    learning_rate shrinkage per round. Opposite philosophy to bagging —
+    bagging averages noisy experts (variance reduction), boosting learns
+    from mistakes (bias reduction). See module docstring for the full
+    Day 12 write-up.
+
+    LightGBM specifics: histogram-based splits (bins continuous features),
+    leaf-wise growth (expands the best-loss leaf, not level-by-level), and
+    native NaN handling. No scaler needed — trees are scale-invariant.
+
+    feature_importances_ use importance_type="gain" (the total loss
+    reduction attributable to each feature) — more meaningful than raw
+    split counts for boosting, and directly comparable across horizons.
+
+    Returns
+    -------
+    dict[int, LGBMRegressor]
+        {horizon: fitted model}. Same NaN-drop policy as Ridge/RF (rows
+        with missing feature or target are dropped honestly, never imputed).
+    """
+    if feature_cols is None:
+        feature_cols = select_features(train_df)
+    missing = [c for c in feature_cols + [f"{_TARGET_PREFIX}{h}" for h in FORECAST_HORIZONS]
+               if c not in train_df.columns]
+    if missing:
+        raise ValueError(
+            f"train_df is missing columns {missing} — run build_features() and "
+            f"add_targets() first (see src/features/)."
+        )
+
+    models = {}
+    for h in FORECAST_HORIZONS:
+        target_col = f"{_TARGET_PREFIX}{h}"
+        clean = train_df[[*feature_cols, target_col]].dropna()
+        if len(clean) == 0:
+            raise ValueError(f"No complete training rows for horizon {h}h — "
+                             f"check data window vs warm-up length.")
+
+        X, y = clean[feature_cols], clean[target_col]
+        lgbm = LGBMRegressor(
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            num_leaves=num_leaves,
+            min_child_samples=min_child_samples,
+            subsample=subsample,
+            subsample_freq=1,          # row sampling every round
+            colsample_bytree=colsample_bytree,
+            n_jobs=n_jobs,
+            random_state=random_state,
+            verbosity=verbosity,
+            importance_type="gain",
+        )
+        lgbm.fit(X, y)
+        models[h] = lgbm
+        logger.info(f"Horizon {h}h: LightGBM(n_estimators={n_estimators}, "
+                    f"learning_rate={learning_rate}, num_leaves={num_leaves}, "
+                    f"min_child_samples={min_child_samples}) on {len(clean)} rows, "
+                    f"{len(feature_cols)} features")
+    return models
+
+
+def lgbm_fit_predict(train_df, valid_df, feature_cols=None, **lgbm_kwargs):
+    """
+    The fit_predict(train_df, valid_df) contract for walk_forward_evaluate().
+
+    Identical shape to ridge_fit_predict()/rf_fit_predict(): train one model
+    per horizon, predict every horizon for valid_df, return a DataFrame with
+    one column per horizon aligned to valid_df.index. The harness therefore
+    scores Ridge, Random Forest and LightGBM on the SAME folds, same rows,
+    same metrics — apples-to-apples (roadmap Day 12).
+    """
+    if feature_cols is None:
+        feature_cols = select_features(train_df)
+    models = train_lgbm_models(train_df, feature_cols=feature_cols, **lgbm_kwargs)
+
+    preds = pd.DataFrame(index=valid_df.index)
+    for h, lgbm in models.items():
+        target_col = f"{_TARGET_PREFIX}{h}"
+        X_valid = valid_df[feature_cols]
+        complete = X_valid.notna().all(axis=1)
+        preds[target_col] = np.nan
+        if complete.any():
+            preds.loc[complete, target_col] = lgbm.predict(X_valid.loc[complete])
+    return preds
+
+
 def coefficient_table(models, feature_cols):
     """
     Coefficient interpretation (Day 10 theme).
@@ -396,14 +530,20 @@ def main():
     )
     parser.add_argument("--alpha", type=float, default=1.0,
                         help="Ridge L2 regularisation strength (default 1.0)")
-    parser.add_argument("--model", choices=["ridge", "rf", "both"], default="both",
-                        help="Which model to run (default: both, compared on same folds)")
+    parser.add_argument("--model", choices=["ridge", "rf", "lgbm", "both", "all"], default="all",
+                        help="Which model(s) to run (default: all, compared on same folds)")
     parser.add_argument("--n-estimators", type=int, default=300,
                         help="Random Forest: number of trees (default 300)")
     parser.add_argument("--max-depth", type=int, default=None,
                         help="Random Forest: max tree depth (default None = full grow, bagging handles variance)")
     parser.add_argument("--min-samples-leaf", type=int, default=2,
                         help="Random Forest: min samples per leaf (default 2)")
+    parser.add_argument("--learning-rate", type=float, default=0.05,
+                        help="LightGBM: shrinkage per boosting round (default 0.05)")
+    parser.add_argument("--num-leaves", type=int, default=31,
+                        help="LightGBM: max leaves per tree (default 31)")
+    parser.add_argument("--min-child-samples", type=int, default=20,
+                        help="LightGBM: min rows per leaf (default 20)")
     parser.add_argument("--n-splits", type=int, default=4,
                         help="Walk-forward folds (default 4)")
     parser.add_argument("--top-k", type=int, default=10,
@@ -470,7 +610,7 @@ def main():
         _print_results(baseline_results, ridge_results, top_k=args.top_k,
                        model_name="RIDGE", importance_table=coefs)
 
-    if args.model in ("rf", "both"):
+    if args.model in ("rf", "both", "all"):
         rf_results = walk_forward_evaluate(
             df,
             lambda tr, va: rf_fit_predict(
@@ -490,6 +630,29 @@ def main():
         importances = feature_importance_table(full_rf, feature_cols)
         _print_results(baseline_results, rf_results, top_k=args.top_k,
                        model_name="RANDOM FOREST", importance_table=importances)
+
+    if args.model in ("lgbm", "both", "all"):
+        lgbm_results = walk_forward_evaluate(
+            df,
+            lambda tr, va: lgbm_fit_predict(
+                tr, va, feature_cols=feature_cols,
+                n_estimators=args.n_estimators,
+                learning_rate=args.learning_rate,
+                num_leaves=args.num_leaves,
+                min_child_samples=args.min_child_samples,
+            ),
+            n_splits=args.n_splits,
+        )
+        full_lgbm = train_lgbm_models(
+            df, feature_cols=feature_cols,
+            n_estimators=args.n_estimators,
+            learning_rate=args.learning_rate,
+            num_leaves=args.num_leaves,
+            min_child_samples=args.min_child_samples,
+        )
+        lgbm_importances = feature_importance_table(full_lgbm, feature_cols)
+        _print_results(baseline_results, lgbm_results, top_k=args.top_k,
+                       model_name="LIGHTGBM", importance_table=lgbm_importances)
 
 
 if __name__ == "__main__":
