@@ -195,8 +195,64 @@ def best_combos(grid_results, model_name, grid=None):
 # 2. UNSEEN-CITY HOLDOUT (Sialkot is in no training fold)
 # =========================================================
 
+def _load_or_fetch_holdout(holdout_city, coords=None):
+    """
+    Return an engineered, date-indexed frame for the holdout city.
+
+    The holdout city (Sialkot) is deliberately ABSENT from the feature
+    store — the roadmap's whole point: it must never enter training. So
+    on real data there are no rows to evaluate on. This helper fixes
+    that gap: it pulls the city's history through the SAME ingestion
+    path as the training cities (backfill_city -> build_features ->
+    add_targets), guaranteeing identical feature construction (the
+    training-serving skew guard, roadmap rule 2), and returns a frame
+    shaped exactly like a store read (date index, city column, targets).
+
+    The result is used ONLY for evaluation. It is never written to the
+    feature store — writing it would leak the holdout city into training.
+    backfill_city does save the raw CSV to data/raw (gitignored), which
+    doubles as a cache: repeat runs load the CSV instead of re-hitting
+    the API (plus requests_cache covers the same hour).
+
+    Parameters
+    ----------
+    holdout_city : str
+        City name, used for the raw CSV filename and the city column.
+    coords : dict | None
+        {'lat': .., 'lon': ..}. Defaults to config.SIALKOT when the
+        holdout city is Sialkot; required for any other city.
+    """
+    from src.config import RAW_DIR, SIALKOT
+    from src.data_ingestion.historical_backfill import _engineer, backfill_city
+
+    if coords is None:
+        if holdout_city.lower() == "sialkot":
+            coords = SIALKOT
+        else:
+            raise ValueError(
+                f"Holdout city '{holdout_city}' is not in the feature store and "
+                f"not Sialkot — pass coords={{'lat': .., 'lon': ..}} so it can be "
+                f"fetched on demand."
+            )
+
+    raw_path = RAW_DIR / f"{holdout_city.lower()}_historical.csv"
+    if raw_path.exists():
+        raw = pd.read_csv(raw_path)
+        raw["date"] = pd.to_datetime(raw["date"], utc=True)
+        frame = _engineer(raw)
+        logger.info(f"Holdout city '{holdout_city}': loaded {len(raw)} raw rows "
+                    f"from {raw_path} (cached)")
+    else:
+        engineered, raw = backfill_city(holdout_city, coords["lat"], coords["lon"])
+        frame = engineered
+        logger.info(f"Holdout city '{holdout_city}': fetched + engineered "
+                    f"{len(frame)} rows (evaluation only, never stored)")
+
+    return frame.set_index("date").sort_index()
+
+
 def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
-                        feature_cols=None, **model_kwargs):
+                        feature_cols=None, coords=None, **model_kwargs):
     """
     Train on every city EXCEPT holdout_city; evaluate only on holdout_city.
 
@@ -204,6 +260,12 @@ def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
     never seen Sialkot (it is deliberately absent from config.CITIES), so
     any skill it shows there is general atmospheric dynamics, not
     memorisation of one city.
+
+    If the holdout city is NOT in the feature store (the normal real-data
+    case — Sialkot was never backfilled), its history is fetched on demand
+    through the same ingestion path as the training cities; see
+    _load_or_fetch_holdout(). The fetched data is used for evaluation only
+    and never written to the store.
 
     Baselines (persistence, seasonal naive) are computed ON the holdout
     city only — the fair comparison is "global model vs naive, both
@@ -220,8 +282,19 @@ def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
     train_df = df[df["city"] != holdout_city]
     test_df = df[df["city"] == holdout_city]
     if len(test_df) == 0:
-        raise ValueError(f"No rows for holdout city '{holdout_city}' — "
-                         f"is it in the data? (It must NOT be in the training cities.)")
+        logger.warning(f"Holdout city '{holdout_city}' not in the feature store — "
+                       f"fetching its history on demand for evaluation only.")
+        test_df = _load_or_fetch_holdout(holdout_city, coords=coords)
+
+    # Defensive: the fetched frame must expose every training feature.
+    # Same build_features() on both sides guarantees this, but verify so
+    # a schema drift fails loudly instead of with a confusing KeyError.
+    missing = [c for c in feature_cols if c not in test_df.columns]
+    if missing:
+        raise ValueError(
+            f"Holdout frame for '{holdout_city}' is missing features {missing} — "
+            f"the store and the holdout must be built by the same build_features()."
+        )
 
     # Fit per-horizon models on ALL non-holdout rows (full history, 10 cities).
     if model_name == "ridge":
