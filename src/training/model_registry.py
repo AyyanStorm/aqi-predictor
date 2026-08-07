@@ -424,7 +424,10 @@ def main():
     reg = ModelRegistry()
 
     if args.command == "list":
-        for v in reg.list_versions():
+        versions = reg.list_versions()
+        if not versions:
+            print("(registry is empty — run training with --register to add models)")
+        for v in versions:
             print(f"  {v['name']}_v{v['version']}  [{v['status']}]  "
                   f"mean RMSE {v['mean_rmse']:.2f}  ({v['created_at'][:10]})")
     elif args.command == "status":
