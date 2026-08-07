@@ -515,7 +515,7 @@ def _print_results(baseline_results, model_results, top_k=10, model_name="MODEL"
                 print(f"  {sign} {abs(row['coefficient']):8.2f}  {row['feature']}")
     else:
         print("\n" + "=" * 62)
-        print(f"TOP {top_k} FEATURE IMPORTANCES PER HORIZON (Random Forest)")
+        print(f"TOP {top_k} FEATURE IMPORTANCES PER HORIZON ({model_name})")
         print("=" * 62)
         for h in FORECAST_HORIZONS:
             top = importance_table[importance_table["horizon_h"] == h].head(top_k)
