@@ -550,6 +550,10 @@ def main():
                         help="Coefficient/importance drivers to print per horizon")
     parser.add_argument("--demo", action="store_true",
                         help="Force synthetic demo data (skip the feature store)")
+    parser.add_argument("--register", action="store_true",
+                        help="Push the full-data refit models to the Model Registry "
+                             "(Day 14) with their walk-forward metrics; auto-promotes "
+                             "only if they beat the current production model")
     args = parser.parse_args()
 
     # 1. Load data: feature store first, demo fallback (same as the notebook).
@@ -598,6 +602,24 @@ def main():
     logger.info(f"Features ({len(feature_cols)}): {feature_cols}")
     baseline_results = evaluate_baselines(df)
 
+    # What gets registered (--register): full-data refit models + their
+    # walk-forward mean metrics. Collected here so every model branch below
+    # feeds the same registry call at the end (Day 14).
+    registry_candidates = []
+
+    def _walkforward_mean(results):
+        mean = results[results["fold_cut"] == "mean"]
+        return {
+            int(r["horizon_h"]): {"rmse": float(r["rmse"]),
+                                   "mae": float(r["mae"]),
+                                   "r2": float(r["r2"])}
+            for _, r in mean.iterrows()
+        }
+
+    def _window(df):
+        idx = df.index
+        return {"start": str(idx.min().date()), "end": str(idx.max().date())}
+
     if args.model in ("ridge", "both"):
         ridge_results = walk_forward_evaluate(
             df,
@@ -609,6 +631,11 @@ def main():
         coefs = coefficient_table(full_ridge, feature_cols)
         _print_results(baseline_results, ridge_results, top_k=args.top_k,
                        model_name="RIDGE", importance_table=coefs)
+        if args.register:
+            registry_candidates.append(
+                ("ridge", full_ridge, _walkforward_mean(ridge_results),
+                 {"alpha": args.alpha})
+            )
 
     if args.model in ("rf", "both", "all"):
         rf_results = walk_forward_evaluate(
@@ -630,6 +657,13 @@ def main():
         importances = feature_importance_table(full_rf, feature_cols)
         _print_results(baseline_results, rf_results, top_k=args.top_k,
                        model_name="RANDOM FOREST", importance_table=importances)
+        if args.register:
+            registry_candidates.append(
+                ("rf", full_rf, _walkforward_mean(rf_results),
+                 {"n_estimators": args.n_estimators,
+                  "max_depth": args.max_depth,
+                  "min_samples_leaf": args.min_samples_leaf})
+            )
 
     if args.model in ("lgbm", "both", "all"):
         lgbm_results = walk_forward_evaluate(
@@ -653,6 +687,39 @@ def main():
         lgbm_importances = feature_importance_table(full_lgbm, feature_cols)
         _print_results(baseline_results, lgbm_results, top_k=args.top_k,
                        model_name="LIGHTGBM", importance_table=lgbm_importances)
+        if args.register:
+            registry_candidates.append(
+                ("lgbm", full_lgbm, _walkforward_mean(lgbm_results),
+                 {"n_estimators": args.n_estimators,
+                  "learning_rate": args.learning_rate,
+                  "num_leaves": args.num_leaves,
+                  "min_child_samples": args.min_child_samples})
+            )
+
+    # 5. Model Registry (Day 14): register every trained model with its
+    #    honest walk-forward metrics; auto-promote only the winners.
+    if args.register and registry_candidates:
+        from src.training.model_registry import ModelRegistry
+
+        reg = ModelRegistry()
+        for name, models, metrics, params in registry_candidates:
+            if models is None:
+                continue
+            version = reg.register(
+                name=name,
+                models=models,
+                metrics=metrics,
+                feature_cols=feature_cols,
+                params=params,
+                n_train_rows=int(len(df)),
+                train_window=_window(df),
+                notes="full-data refit, walk-forward metrics from --register run",
+            )
+            reg.promote_if_better(name, version)
+        print("\n" + "=" * 62)
+        print("MODEL REGISTRY (Day 14) — current production")
+        print("=" * 62)
+        print(reg.status())
 
 
 if __name__ == "__main__":
