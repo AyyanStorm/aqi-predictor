@@ -503,7 +503,15 @@ def _print_results(baseline_results, model_results, top_k=10, model_name="MODEL"
     mean = model_results[model_results["fold_cut"] == "mean"]
     print(mean[["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False))
 
-    if importance_table is None or "importance" not in importance_table.columns:
+    if importance_table is None:
+        # LSTM (Day 15): no native feature importance or coefficients.
+        # The honest statement is that it has neither — SHAP (Day 20)
+        # will be the interpretability layer for every model.
+        print("\n" + "=" * 62)
+        print("LSTM: no native feature importance (sequence model) — ")
+        print("interpretability comes from SHAP on Day 20.")
+        print("=" * 62)
+    elif "importance" not in importance_table.columns:
         print("\n" + "=" * 62)
         print(f"TOP {top_k} COEFFICIENT DRIVERS PER HORIZON (standardised)")
         print("=" * 62)
@@ -530,7 +538,7 @@ def main():
     )
     parser.add_argument("--alpha", type=float, default=1.0,
                         help="Ridge L2 regularisation strength (default 1.0)")
-    parser.add_argument("--model", choices=["ridge", "rf", "lgbm", "both", "all"], default="all",
+    parser.add_argument("--model", choices=["ridge", "rf", "lgbm", "lstm", "both", "all"], default="all",
                         help="Which model(s) to run (default: all, compared on same folds)")
     parser.add_argument("--n-estimators", type=int, default=300,
                         help="Random Forest: number of trees (default 300)")
@@ -544,6 +552,12 @@ def main():
                         help="LightGBM: max leaves per tree (default 31)")
     parser.add_argument("--min-child-samples", type=int, default=20,
                         help="LightGBM: min rows per leaf (default 20)")
+    parser.add_argument("--window", type=int, default=24,
+                        help="LSTM: hours of history per sequence (default 24)")
+    parser.add_argument("--lstm-units", type=int, default=32,
+                        help="LSTM: hidden size (default 32)")
+    parser.add_argument("--lstm-epochs", type=int, default=10,
+                        help="LSTM: training epochs (default 10)")
     parser.add_argument("--n-splits", type=int, default=4,
                         help="Walk-forward folds (default 4)")
     parser.add_argument("--top-k", type=int, default=10,
@@ -695,6 +709,22 @@ def main():
                   "num_leaves": args.num_leaves,
                   "min_child_samples": args.min_child_samples})
             )
+
+    if args.model in ("lstm", "both", "all"):
+        from src.training.lstm import lstm_fit_predict
+
+        lstm_results = walk_forward_evaluate(
+            df,
+            lambda tr, va: lstm_fit_predict(
+                tr, va, feature_cols=feature_cols,
+                window=args.window,
+                units=args.lstm_units,
+                epochs=args.lstm_epochs,
+            ),
+            n_splits=args.n_splits,
+        )
+        _print_results(baseline_results, lstm_results, top_k=args.top_k,
+                       model_name="LSTM", importance_table=None)
 
     # 5. Model Registry (Day 14): register every trained model with its
     #    honest walk-forward metrics; auto-promote only the winners.

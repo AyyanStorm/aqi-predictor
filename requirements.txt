@@ -6,3 +6,4 @@ numpy
 python-dotenv
 pyarrow
 scikit-learn
+keras  # Day 15 LSTM baseline (runs on torch backend, no TensorFlow)

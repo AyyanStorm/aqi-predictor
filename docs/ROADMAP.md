@@ -325,7 +325,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 | 12 | Fri 7 Aug | Gradient boosting / LightGBM: how boosting differs from bagging, key hyperparameters | — | `feat: lightgbm model, best RMSE so far` | ✅ done |
 | 13 | Sat 8 Aug | Walk-forward backtesting, hyperparameter tuning, unseen-city holdout evaluation | `src/training/tune.py` | `feat: walk-forward backtesting and tuning` | ✅ done |
 | 14 | Sun 9 Aug | Model Registry: serialisation, versioning, metadata, promotion logic | `src/training/model_registry.py` | `feat: model registry with automated promotion` | ✅ done |
-| 15 | Mon 10 Aug | LSTM in Keras: sequences, windowing, why RNNs suit time series; honest comparison vs LightGBM | — | `feat: LSTM baseline for model comparison` | ⬜ |
+| 15 | Mon 10 Aug | LSTM in Keras: sequences, windowing, why RNNs suit time series; honest comparison vs LightGBM | `src/training/lstm.py` | `feat: LSTM baseline for model comparison` | ✅ done |
 
 ### Phase 3 — Serving (Days 16–20)
 
@@ -474,7 +474,7 @@ final report — it proves the build covers the brief line by line.
 | 13 | Web app loads model + features, shows predictions on a dashboard | `src/inference/predict.py` + `app/streamlit_app.py` | Days 16–17 |
 | 14 | Use Streamlit/Gradio **and** Flask/FastAPI | `app/streamlit_app.py` + `app/api.py` (`/predict?lat=&lon=` → +24/48/72h JSON) | Days 17–19 |
 | 15 | EDA to identify trends | `notebooks/01_eda.ipynb` + written-up findings (10 cities) | ✅ done (Days 2–4) |
-| 16 | Variety of forecasting models: statistical → deep learning | persistence → seasonal naive → Ridge → Random Forest → LightGBM → LSTM | ✅ baselines + Ridge · rest Days 11–15 |
+| 16 | Variety of forecasting models: statistical → deep learning | persistence → seasonal naive → Ridge → Random Forest → LightGBM → LSTM | ✅ all done (Days 9–15) |
 | 17 | SHAP or LIME for feature importance | SHAP TreeExplainer in dashboard | Day 20 |
 | 18 | Alerts for hazardous AQI levels | `src/utils/aqi_utils.py` + `app/components/forecast_cards.py` | Day 19 |
 | 19 | Dashboard shows real-time **and** forecasted AQI | Current AQI + +24/48/72h forecast + trends | Days 17–20 |
