@@ -32,7 +32,18 @@ friendly error instead of crashing — the same path a fresh Render
 deploy would hit before its first training run.
 """
 
+import sys
+from pathlib import Path
+
 import streamlit as st
+
+# `streamlit run app/streamlit_app.py` puts app/ on sys.path, not the
+# project root — so `import src` would fail with "No module named 'src'".
+# Prepend the repo root explicitly (parents[1] of this file) so the app
+# works no matter where it's launched from (local dev, Render, etc.).
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import CITIES
 from src.inference.predict import predict
