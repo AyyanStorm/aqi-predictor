@@ -197,7 +197,11 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
             f"increase HISTORY_DAYS."
         )
 
-    X = row.values.reshape(1, -1)
+    # One-row DataFrame, NOT a bare numpy array: sklearn/LightGBM check
+    # feature names against what the model was fitted with, and warn (or
+    # misalign) if they're missing. row is indexed by feature_cols, so
+    # to_frame().T rebuilds the exact training column order + names.
+    X = row.to_frame().T
     forecast = {}
     for h in FORECAST_HORIZONS:
         raw = float(models[h].predict(X)[0])
