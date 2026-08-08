@@ -47,3 +47,13 @@ data/
 
 # Streamlit production secrets
 .streamlit/secrets.toml
+# OpenClaw agent workspace (not project code)
+AGENTS.md
+SOUL.md
+IDENTITY.md
+USER.md
+TOOLS.md
+HEARTBEAT.md
+memory/
+media/
+openclaw-workspace-state.json
