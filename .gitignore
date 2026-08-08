@@ -63,7 +63,7 @@ data/*
 
 # Streamlit production secrets
 .streamlit/secrets.toml
-# --- Agent workspace files (never commit these) ---
+# OpenClaw agent workspace (not project code)
 AGENTS.md
 SOUL.md
 IDENTITY.md
