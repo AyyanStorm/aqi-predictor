@@ -1,0 +1,40 @@
+# Render blueprint — one repo, two services.
+# Dashboard (Streamlit) + API (FastAPI) both deploy from this file.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# How to deploy:
+#   1. Push this file to main.
+#   2. Render dashboard → New → Blueprint → select aqi-predictor repo.
+#   3. Set HOPSWORKS_API_KEY as a secret env var on both services.
+#   4. Render builds both services and gives you public HTTPS URLs.
+#
+# Free tier note: free web services spin down after ~15 min idle and
+# cold-start on the next request. Fine for demos/submission; the model
+# artifact is fetched from Hopsworks at boot (data/ is gitignored and
+# free instances have no persistent disk).
+
+services:
+  - type: web
+    name: aqi-api
+    runtime: python
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: HOPSWORKS_API_KEY
+        sync: false # set manually in the Render dashboard (never commit)
+
+  - type: web
+    name: aqi-dashboard
+    runtime: python
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app/streamlit_app.py --server.address 0.0.0.0 --server.port $PORT
+    envVars:
+      - key: AQI_API_URL
+        value: https://aqi-api.onrender.com
+      - key: HOPSWORKS_API_KEY
+        sync: false # set manually in the Render dashboard (never commit)

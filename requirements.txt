@@ -6,4 +6,13 @@ numpy
 python-dotenv
 pyarrow
 scikit-learn
+lightgbm  # Day 12 — production model (was missing from requirements!)
 keras  # Day 15 LSTM baseline (runs on torch backend, no TensorFlow)
+
+# --- Serving layer (Render deployment, Days 17-23) ---
+streamlit
+fastapi
+uvicorn
+plotly
+streamlit-js-eval  # browser geolocation
+shap  # Day 20 explainability
