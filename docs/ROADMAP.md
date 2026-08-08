@@ -19,7 +19,7 @@ A production-shaped ML system with five moving parts that run on a schedule and 
 | Historical backfill | Once (manual) | Same logic, but over 4 years of past data → creates the training set |
 | Training pipeline | Daily (GitHub Actions) | Read features → train + evaluate models → push best model to Model Registry |
 | Inference pipeline | On demand (dashboard) | Read latest features + registered model → predict AQI for +24h, +48h, +72h |
-| Dashboard | Always on (Streamlit Cloud) | Detect user location → show current AQI, 3-day forecast, trends, explanations, alerts |
+| Dashboard | Always on (Render) | Detect user location → show current AQI, 3-day forecast, trends, explanations, alerts |
 
 The grader is not scoring "did you get a good RMSE." They are scoring **does this look like an engineer built a system**. Automation, structure, documentation, and honest evaluation carry more weight than model accuracy.
 
@@ -253,6 +253,7 @@ aqi-predictor/
 ├── .env.example                       # COMMITTED — placeholder keys
 ├── .gitignore
 ├── requirements.txt
+├── render.yaml                        # Render blueprint — dashboard + API (Day 23)
 ├── README.md
 └── LICENSE
 ```
@@ -285,7 +286,7 @@ aqi-predictor/
 | API layer | FastAPI | The brief explicitly says "Streamlit/Gradio **and** Flask/FastAPI" — Streamlit alone does not satisfy it. A thin `/predict` endpoint (lat, lon → +24h/48h/72h JSON) covers the bullet at ~100 lines. |
 | Geolocation | `streamlit-js-eval` → `ipapi.co` → Open-Meteo Geocoding | Three-tier fallback, zero API keys. |
 | Orchestration | GitHub Actions (cron) | Free, already where your code lives. Airflow needs a server you do not have. |
-| Deployment | Streamlit Community Cloud (+ FastAPI on the same repo) | Free, deploys straight from the repo, gives a public URL for your submission. |
+| Deployment | **Render** (blueprint: Streamlit dashboard + FastAPI API) | Free tier deploys straight from the repo; one `render.yaml` blueprint spins up both services; public HTTPS URLs for the submission. Replaces Streamlit Cloud — chosen Day 23. |
 | Testing | pytest | Lightweight. |
 | Secrets | `python-dotenv` locally, GitHub Secrets in CI | Never hardcode a key. |
 
@@ -343,7 +344,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 |---|---|---|---|---|---|
 | 21 | Sun 16 Aug | GitHub Actions concepts: workflows, triggers, cron, secrets; hourly feature pipeline | `.github/workflows/feature_pipeline.yml` | `ci: hourly automated feature pipeline` | ⬜ |
 | 22 | Mon 17 Aug | Daily training workflow + automatic model promotion; watch a real run succeed | `.github/workflows/training_pipeline.yml` | `ci: daily automated retraining` | ⬜ |
-| 23 | Tue 18 Aug | Deploy to Streamlit Community Cloud; secrets in production; debug the inevitable breakage | — | `chore: production deployment configuration` | ⬜ |
+| 23 | Tue 18 Aug | Deploy to Render via `render.yaml` blueprint; secrets as Render env vars; model artifact fetched from Hopsworks at boot (free instances have no persistent disk); debug the inevitable breakage | `render.yaml` | `chore: production deployment configuration` | ⬜ |
 | 24 | Wed 19 Aug | Robustness: retries, timeouts, graceful degradation, structured logs, failure notifications | — | `feat: production error handling and observability` | ⬜ |
 
 ### Phase 5 — Proof & Polish (Days 25–28)
@@ -416,10 +417,11 @@ ci:       pipeline changes
 | R4 | Hopsworks free-tier limits or outage | High | Low–Medium | Adapter pattern in `feature_store.py`; Parquet fallback ready |
 | R5 | Open-Meteo rate limiting during the 10-city backfill | Medium | Medium | `requests-cache` (already in your code) + retry with backoff + sequential city loop with sleep |
 | R6 | GitHub Actions cron does not fire on schedule | Medium | **Medium — this is common** | Also add `workflow_dispatch` so you can trigger manually; verify runs on Day 22 and again on Day 28 |
-| R7 | Streamlit Cloud cold-starts or times out loading the model | Medium | Medium | `@st.cache_resource` for the model, `@st.cache_data` for API calls; keep model file small |
+| R7 | Render free-tier cold start (instances spin down after ~15 min idle) or model load timeout | Medium | Medium | `@st.cache_resource` for the model, `@st.cache_data` for API calls; fetch model from Hopsworks at boot; keep artifact small |
 | R8 | Browser geolocation blocked (no HTTPS / permission denied) | Medium | High | Three-tier fallback (Section 3) — manual city search always works |
 | R9 | Falling behind schedule | High | Medium | Cut list in Section 7. Decide by Day 20, not Day 27. |
 | R10 | Model performs poorly at +72h | Low | **High — this is expected** | Report it honestly. Forecast skill decaying with horizon is a real, correct finding. Reviewers respect a documented limitation far more than a suspiciously perfect number. |
+| R11 | Render free instance has no persistent disk — model artifacts lost on redeploy | Medium | Medium | Never rely on local files in `data/`; pull the registered artifact from Hopsworks Model Registry at boot (Day 23) |
 
 ---
 
@@ -429,7 +431,7 @@ ci:       pipeline changes
 - [ ] Training pipeline runs daily — green runs visible
 - [ ] Feature Store contains ≥ 4 years × 10 cities of engineered features
 - [ ] Model Registry contains versioned models for all three horizons
-- [ ] Dashboard live on a public Streamlit URL
+- [ ] Dashboard live on a public Render URL (Streamlit + FastAPI from the same blueprint)
 - [ ] Dashboard auto-detects location and forecasts AQI for +24h / +48h / +72h
 - [ ] FastAPI `/predict` endpoint returns the 3-day forecast as JSON (brief: Streamlit **and** Flask/FastAPI)
 - [ ] RMSE, MAE and R² reported per horizon, versus a naive baseline
@@ -478,7 +480,7 @@ final report — it proves the build covers the brief line by line.
 | 17 | SHAP or LIME for feature importance | SHAP TreeExplainer in dashboard | Day 20 |
 | 18 | Alerts for hazardous AQI levels | `src/utils/aqi_utils.py` + `app/components/forecast_cards.py` | Day 19 |
 | 19 | Dashboard shows real-time **and** forecasted AQI | Current AQI + +24/48/72h forecast + trends | Days 17–20 |
-| 20 | 100% serverless stack | GitHub Actions + Streamlit Cloud + Hopsworks serverless + Open-Meteo (no Docker/Airflow/MLflow) | ✅ by design (Section 6) |
+| 20 | 100% serverless stack | GitHub Actions + Render + Hopsworks serverless + Open-Meteo (no Docker/Airflow/MLflow) | ✅ by design (Section 6) |
 | 21 | Final: end-to-end system, automated pipeline, interactive dashboard, detailed report | Repo + `docs/PROJECT_REPORT.md` + README | Days 26–28 |
 | 22 | **Differentiator (KEEP — unique idea): predict for ANY city, not just one** | City-agnostic global model: 10 training cities + unseen-city holdout (Sialkot); dashboard auto-detects location (geolocation → IP → manual search) | ✅ designed Day 1, code Days 16–18. Exceeds the brief's single-city scope — this is what makes the project stand out |
 
