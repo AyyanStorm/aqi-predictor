@@ -41,7 +41,8 @@ What this module provides:
     2. predict()           — lat/lon -> {24h, 48h, 72h} forecast dict,
                              with the current AQI and model metadata.
     3. CLI                 — python -m src.inference.predict
-                             --lat 24.8608 --lon 67.0104 --city Karachi
+                             (defaults to Karachi; --city Lahore also works;
+                             --lat/--lon override for anywhere on Earth)
 """
 
 import argparse
@@ -49,7 +50,13 @@ import json
 
 import pandas as pd
 
-from src.config import AIR_QUALITY_URL, FORECAST_URL, FORECAST_HORIZONS, WEATHER_VARIABLES
+from src.config import (
+    AIR_QUALITY_URL,
+    CITIES,
+    FORECAST_URL,
+    FORECAST_HORIZONS,
+    WEATHER_VARIABLES,
+)
 from src.data_ingestion.open_meteo_client import fetch_air_quality, fetch_weather
 from src.features.build_features import build_features
 from src.training.model_registry import ModelRegistry
@@ -218,21 +225,36 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Day 16: end-to-end inference — lat/lon -> 3-day AQI forecast."
+        description="Day 16: end-to-end inference — city or lat/lon -> 3-day AQI forecast."
     )
-    parser.add_argument("--lat", type=float, required=True,
-                        help="Latitude (e.g. 24.8608 for Karachi)")
-    parser.add_argument("--lon", type=float, required=True,
-                        help="Longitude (e.g. 67.0104 for Karachi)")
-    parser.add_argument("--city", default="inference",
-                        help="Display label (never a model feature)")
+    parser.add_argument("--city", default="Karachi",
+                        help="City name from config.CITIES; auto-fills lat/lon "
+                             "(default: Karachi, the project's home city)")
+    parser.add_argument("--lat", type=float,
+                        help="Latitude — overrides --city (with --lon)")
+    parser.add_argument("--lon", type=float,
+                        help="Longitude — overrides --city (with --lat)")
     parser.add_argument("--name", default=None,
                         help="Model family (default: production model)")
     parser.add_argument("--version", type=int, default=None,
                         help="Model version (default: production)")
     args = parser.parse_args()
 
-    result = predict(args.lat, args.lon, city=args.city,
+    # Explicit lat/lon win if both given; otherwise resolve from --city.
+    if args.lat is not None and args.lon is not None:
+        lat, lon = args.lat, args.lon
+    else:
+        if args.city not in CITIES:
+            parser.error(
+                f"Unknown city '{args.city}' — pass --lat/--lon instead, or use "
+                f"one of: {', '.join(sorted(CITIES))}"
+            )
+        coords = CITIES[args.city]
+        lat, lon = coords["lat"], coords["lon"]
+        if args.lat is not None or args.lon is not None:
+            parser.error("Provide BOTH --lat and --lon, or neither (--city fills them)")
+
+    result = predict(lat, lon, city=args.city,
                      name=args.name, version=args.version)
     print(json.dumps(result, indent=2, sort_keys=True))
 
