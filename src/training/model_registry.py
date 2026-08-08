@@ -334,6 +334,23 @@ class ModelRegistry:
     # Loading (used by inference, Day 16)
     # -------------------------------------------------
 
+    def production_entry(self):
+        """
+        The current production version of the whole registry (any name).
+
+        Inference (Day 16) wants "the model that is live right now"
+        without caring which family won. If several names are in
+        production, the most recently promoted one wins.
+        """
+        index = self._read_index()
+        prod = [v for v in index["versions"] if v["status"] == STATUS_PRODUCTION]
+        if not prod:
+            return None
+        return max(
+            prod,
+            key=lambda v: v.get("promoted_at") or v.get("created_at") or "",
+        )
+
     def load(self, name, version=None):
         """
         Load a registered model set from disk.
