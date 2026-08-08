@@ -332,7 +332,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 
 | Day | Date | Theme | NEW | Commit | Status |
 |---|---|---|---|---|---|
-| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` | ⬜ |
+| 16 | Tue 11 Aug | Inference pipeline: lat/lon → live fetch (incl. forecast weather) → SAME build_features (Family A + Family B) → load model → 3-day forecast | `src/inference/predict.py` | `feat: end-to-end inference pipeline` | ✅ done |
 | 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` | ⬜ |
 | 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` | ⬜ |
 | 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; **live 10-city leaderboard** ("worst city right now", unique feature); FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/components/leaderboard.py`, `app/api.py` | `feat: interactive charts, hazard alerts, city leaderboard, and FastAPI endpoint` | ⬜ |
@@ -473,7 +473,7 @@ final report — it proves the build covers the brief line by line.
 | 10 | Evaluate RMSE, MAE, R² | `src/training/evaluate.py` — shared metric functions + walk-forward harness | ✅ done (Day 9) |
 | 11 | Store trained model in a Model Registry | `src/training/model_registry.py` (+ Hopsworks registry, joblib fallback) | ✅ done (Day 14) |
 | 12 | CI/CD: feature script every hour + training script every day (Airflow/GitHub Actions or other) | `.github/workflows/feature_pipeline.yml` + `training_pipeline.yml` (GitHub Actions cron + manual dispatch) | Days 21–22 |
-| 13 | Web app loads model + features, shows predictions on a dashboard | `src/inference/predict.py` + `app/streamlit_app.py` | Days 16–17 |
+| 13 | Web app loads model + features, shows predictions on a dashboard | `src/inference/predict.py` + `app/streamlit_app.py` | ✅ predict.py done (Day 16) · Streamlit Days 17–18 |
 | 14 | Use Streamlit/Gradio **and** Flask/FastAPI | `app/streamlit_app.py` + `app/api.py` (`/predict?lat=&lon=` → +24/48/72h JSON) | Days 17–19 |
 | 15 | EDA to identify trends | `notebooks/01_eda.ipynb` + written-up findings (10 cities) | ✅ done (Days 2–4) |
 | 16 | Variety of forecasting models: statistical → deep learning | persistence → seasonal naive → Ridge → Random Forest → LightGBM → LSTM | ✅ all done (Days 9–15) |
