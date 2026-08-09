@@ -6,24 +6,26 @@ inference pipeline into a web UI: pick a city -> load the production
 model from the registry -> show current AQI + the 3-day forecast.
 
 Day 17 scope (roadmap): Streamlit FUNDAMENTALS — layout, widgets,
-caching, session state. Deliberately NOT in this file yet:
-    - geolocation / geocoding search        (Day 18: geo.py)
+caching, session state. Day 18 added the three-tier location picker
+(geo.py + components/location_picker.py): browser GPS → IP → manual
+search, with reverse geocoding to a display name.
+
+Deliberately NOT in this file yet:
     - Plotly charts, AQI colour bands,       (Day 19: aqi_utils.py,
       health messages, alerts, leaderboard    components/charts.py)
     - SHAP explanations + talking SHAP       (Day 20)
-The skeleton is structured so those slots in cleanly.
 
-The three Streamlit ideas this page demonstrates:
+The Streamlit ideas this page demonstrates:
     1. LAYOUT        — st.set_page_config + sidebar + columns, so the
                        page reads as a dashboard, not a script.
-    2. WIDGETS       — selectbox (city), text_input (model name),
-                       button (refresh) -> each rerun reads their state.
+    2. WIDGETS       — location picker (3 tiers), text_input (model
+                       name), button (refresh) -> reruns read state.
     3. CACHING       — @st.cache_data on the prediction call: Open-Meteo
                        is hit once per city per TTL, not on every widget
                        interaction. The button clears the cache to force
                        a fresh forecast.
-    4. SESSION STATE — the chosen city survives reruns in
-                       st.session_state, so sidebar changes don't reset
+    4. SESSION STATE — the location dict + city survive reruns in
+                       st.session_state, so widget changes don't reset
                        the page.
 
 Error handling: the local registry may have no production model (data/
@@ -32,11 +34,23 @@ friendly error instead of crashing — the same path a fresh Render
 deploy would hit before its first training run.
 """
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from src.config import CITIES
+# `streamlit run app/streamlit_app.py` puts app/ on sys.path, not the
+# project root — so `import src` (and `import app.components`) would fail
+# with "No module named". Prepend the repo root explicitly (parents[1] of
+# this file) so the app works no matter where it's launched from (local
+# dev, Render, etc.).
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.inference.predict import predict
 from src.utils.logger import get_logger
+from app.components.location_picker import location_picker
 
 logger = get_logger(__name__)
 
@@ -62,18 +76,10 @@ def get_forecast(city, lat, lon, model_name):
 with st.sidebar:
     st.header("⚙️ Settings")
 
-    city_names = list(CITIES)
-    # Session state: the chosen city survives every rerun.
-    default_idx = city_names.index(
-        st.session_state.get("city", "Karachi")
-    ) if st.session_state.get("city") in city_names else 0
-    city = st.selectbox(
-        "City",
-        city_names,
-        index=default_idx,
-        help="Model is city-agnostic (global) — any of these works.",
-    )
-    st.session_state["city"] = city
+    # Day 18: three-tier location picker (browser GPS -> IP -> search).
+    # Returns {"name", "lat", "lon", "source"}, persisted in session state.
+    loc = location_picker()
+    city, lat, lon = loc["name"], loc["lat"], loc["lon"]
 
     model_name = st.text_input(
         "Model (optional)",
@@ -96,14 +102,14 @@ st.title("🌫️ AQI Predictor — Pakistan")
 st.caption(
     f"Live air quality forecast for **{city}** · "
     "city-agnostic model trained on 10 Pakistani cities · "
-    f"lat {CITIES[city]['lat']}, lon {CITIES[city]['lon']}"
+    f"lat {lat}, lon {lon} · source: {loc['source']}"
 )
 
 try:
     result = get_forecast(
         city,
-        CITIES[city]["lat"],
-        CITIES[city]["lon"],
+        lat,
+        lon,
         model_name or None,  # "" -> production model
     )
 except (SystemExit, RuntimeError, KeyError) as e:
