@@ -139,12 +139,16 @@ def location_picker():
         st.session_state["geo_results"] = results
         if results:
             labels = [_label(r) for r in results]
-            current = st.session_state[LOCATION_KEY]["name"]
-            default_idx = labels.index(current) if current in labels else 0
+            # index=None + placeholder on purpose: with a pre-selected
+            # first match (index=0), Streamlit's on_change never fires —
+            # the widget's value doesn't CHANGE, so the callback is
+            # skipped and the picked city never gets applied. Forcing an
+            # explicit pick guarantees a change event -> _apply_search_match.
             st.selectbox(
                 "Matches",
                 labels,
-                index=default_idx,
+                index=None,
+                placeholder="Select a match…",
                 key="geo_match",
                 on_change=_apply_search_match,
             )
