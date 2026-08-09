@@ -121,8 +121,12 @@ load_dotenv()
 # from repo Secrets — same os.getenv() call, no code change.
 HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")
 HOPSWORKS_PROJECT = os.getenv("HOPSWORKS_PROJECT")
-HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "eu-west.cloud.hopsworks.ai")
-HOPSWORKS_PORT = int(os.getenv("HOPSWORKS_PORT", "443"))
+# `or default` instead of `getenv(key, default)`: GitHub Actions sets
+# *undefined* secrets to empty string "" — getenv's default only applies
+# when the var is UNSET, so an empty string would silently override the
+# cluster defaults and break the Hopsworks login. Treat empty as unset.
+HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST") or "eu-west.cloud.hopsworks.ai"
+HOPSWORKS_PORT = int(os.getenv("HOPSWORKS_PORT") or "443")
 
 # Feature group schema — one definition, used by both the Hopsworks
 # adapter and the Parquet fallback so they can never drift apart.
