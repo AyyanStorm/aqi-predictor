@@ -342,7 +342,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 
 | Day | Date | Theme | NEW | Commit | Status |
 |---|---|---|---|---|---|
-| 21 | Sun 16 Aug | GitHub Actions concepts: workflows, triggers, cron, secrets; hourly feature pipeline | `.github/workflows/feature_pipeline.yml` | `ci: hourly automated feature pipeline` | ⬜ |
+| 21 | Sun 16 Aug | GitHub Actions concepts: workflows, triggers, cron, secrets; hourly feature pipeline | `.github/workflows/feature_pipeline.yml` | `ci: hourly automated feature pipeline` | ✅ done |
 | 22 | Mon 17 Aug | Daily training workflow + automatic model promotion; watch a real run succeed | `.github/workflows/training_pipeline.yml` | `ci: daily automated retraining` | ⬜ |
 | 23 | Tue 18 Aug | Deploy to Render via `render.yaml` blueprint; secrets as Render env vars; model artifact fetched from Hopsworks at boot (free instances have no persistent disk); debug the inevitable breakage | `render.yaml` | `chore: production deployment configuration` | ⬜ |
 | 24 | Wed 19 Aug | Robustness: retries, timeouts, graceful degradation, structured logs, failure notifications | — | `feat: production error handling and observability` | ⬜ |
