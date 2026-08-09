@@ -1,0 +1,53 @@
+name: feature_pipeline
+
+# Day 21: the hourly feature pipeline.
+#
+# Every hour this workflow pulls the latest 10 days of AQI + weather for
+# all 10 cities, rebuilds engineered features with the SAME
+# build_features() used in training, and writes them to the Feature
+# Store (Hopsworks when secrets are configured, Parquet fallback
+# otherwise).
+#
+# Why cron + workflow_dispatch (roadmap R6): cron is the scheduled
+# trigger; workflow_dispatch lets us run it manually from the Actions
+# tab when testing or after a deploy — never rely on cron alone.
+
+on:
+  schedule:
+    # Hourly at minute 5 (minute 0 is the busiest across all repos).
+    - cron: "5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  # Don't stack runs: if an hour's run is still going when the next
+  # fires, cancel the older one — the newest data wins anyway.
+  group: feature-pipeline
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run hourly ingest
+        env:
+          # Injected from repo Secrets — the same os.getenv() calls the
+          # local .env would satisfy, so the code never changes between
+          # local dev and CI (config.py load_dotenv() is a no-op here).
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+          HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
+          HOPSWORKS_PORT: ${{ secrets.HOPSWORKS_PORT }}
+        run: python -m src.data_ingestion.hourly_ingest
