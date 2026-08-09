@@ -37,6 +37,7 @@ deploy would hit before its first training run.
 import sys
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 # `streamlit run app/streamlit_app.py` puts app/ on sys.path, not the
@@ -54,6 +55,11 @@ from app.components.location_picker import location_picker
 from app.components.forecast_cards import render_forecast_cards
 from app.components.charts import plot_trend, plot_forecast
 from app.components.leaderboard import render_leaderboard
+from app.components.explanation import (
+    render_explanations,
+    fetch_city_events,
+    add_event_shapes,
+)
 
 logger = get_logger(__name__)
 
@@ -137,13 +143,34 @@ else:
     st.divider()
     st.subheader("📈 AQI trend")
     try:
+        trend_fig = plot_trend(lat, lon, city, result)
+        # Day 20: smog-season event annotations (episodes + spikes) on
+        # the trend chart, from events.py detectors.
+        try:
+            events = fetch_city_events(
+                lat, lon, city,
+                start=pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=10),
+                end=pd.Timestamp.now(tz="UTC"),
+            )
+            add_event_shapes(trend_fig, events)
+            if not events.empty:
+                st.caption(
+                    f"🗓️ {len(events)} event(s) detected on this window "
+                    "(red bands = smog episodes, ★ = AQI spikes)"
+                )
+        except Exception as e:
+            logger.warning(f"Event annotations skipped: {e}")
         st.plotly_chart(
-            plot_trend(lat, lon, city, result),
+            trend_fig,
             use_container_width=True,
             config={"displayModeBar": False},
         )
     except Exception as e:  # history fetch hiccup shouldn't kill the page
         st.warning(f"Trend chart unavailable: {e}")
+
+    # --- Row 2b: SHAP explainability + talking SHAP (Day 20) ---
+    st.divider()
+    render_explanations(result)
 
     # --- Row 3: the three horizon cards as a compact chart ---
     st.plotly_chart(
