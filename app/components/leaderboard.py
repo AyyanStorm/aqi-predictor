@@ -67,12 +67,31 @@ def render_leaderboard():
     )
 
     # Bar chart: AQI per city, colour = EPA band.
-    chart_data = pd.DataFrame(rows, columns=["city", "aqi"]).set_index("city")
-    st.bar_chart(
-        chart_data,
-        color=[aqi_color(a) for a in chart_data["aqi"]],
-        height=320,
+    # Plotly (not st.bar_chart): st.bar_chart's `color` expects one color
+    # per COLUMN, not per row, so per-city EPA colours crash it with a
+    # StreamlitColorLengthError. Plotly marker_color is per-bar and plays
+    # nicely with the rest of the dashboard's charts.
+    import plotly.graph_objects as go
+
+    chart = go.Figure(
+        go.Bar(
+            x=[c for c, _ in rows],
+            y=[a for _, a in rows],
+            marker_color=[aqi_color(a) for _, a in rows],
+            text=[a for _, a in rows],
+            textposition="outside",
+            hovertemplate="%{x}<br>AQI %{y}<extra></extra>",
+        )
     )
+    chart.update_layout(
+        height=360,
+        margin=dict(l=10, r=10, t=10, b=10),
+        yaxis_title="Current AQI",
+        xaxis_title=None,
+        showlegend=False,
+    )
+    st.plotly_chart(chart, use_container_width=True,
+                    config={"displayModeBar": False})
 
     # Text ranking with badges.
     for rank, (city, aqi) in enumerate(rows, start=1):
