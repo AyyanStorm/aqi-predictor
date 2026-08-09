@@ -51,6 +51,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.inference.predict import predict
 from src.utils.logger import get_logger
 from app.components.location_picker import location_picker
+from app.components.forecast_cards import render_forecast_cards
+from app.components.charts import plot_trend, plot_forecast
+from app.components.leaderboard import render_leaderboard
 
 logger = get_logger(__name__)
 
@@ -119,40 +122,50 @@ except (SystemExit, RuntimeError, KeyError) as e:
         "with:  `python -m src.training.train --model lgbm --register`"
     )
     st.stop()
+else:
+    # Only reachable when the forecast loaded — everything below needs
+    # `result`, so it lives in the else branch (st.stop() halts in real
+    # runs, but this keeps bare/edge executions from falling through).
 
-current = result["current_aqi"]
-forecast = result["forecast"]
-model = result["model"]
+    # --- Row 1: colour-coded forecast cards (EPA bands + health message) ---
+    render_forecast_cards(result)
 
-# --- Row 1: current AQI + the three horizon cards ---
-col_cur, col_24, col_48, col_72 = st.columns([1.2, 1, 1, 1])
+    # --- Row 2: trend chart (observed history + forecast points) ---
+    st.divider()
+    st.subheader("📈 AQI trend")
+    try:
+        st.plotly_chart(
+            plot_trend(lat, lon, city, result),
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
+    except Exception as e:  # history fetch hiccup shouldn't kill the page
+        st.warning(f"Trend chart unavailable: {e}")
 
-with col_cur:
-    st.metric("Current AQI", f"{current}", help="Last observed hourly AQI")
-
-for col, h in ((col_24, 24), (col_48, 48), (col_72, 72)):
-    with col:
-        st.metric(f"+{h}h forecast", f"{forecast[str(h)]}",
-                  help=f"Predicted AQI {h} hours from now")
-
-# --- Row 2: model + data provenance ---
-st.divider()
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Model", f"{model['name']}_v{model['version']}")
-m2.metric("Walk-forward RMSE", f"{model['mean_rmse']:.1f}")
-m3.metric("Fetched at", f"{result['fetched_at'][11:16]} UTC")
-m4.metric("City", city)
-
-with st.expander("📍 Where do these numbers come from?"):
-    st.markdown(
-        """
-        - **Data:** Open-Meteo (free, no key) — hourly AQI + pollutants for
-          the last 10 days, forecast weather for the next 4 days.
-        - **Features:** the SAME `build_features()` used in training
-          (lags, rolling windows, change rate, cyclical time, future
-          weather) — no training-serving skew by construction.
-        - **Model:** the registry's production version, fed only the exact
-          columns it was trained on.
-        - **Output:** current observed AQI + predicted AQI at +24h/+48h/+72h.
-        """
+    # --- Row 3: the three horizon cards as a compact chart ---
+    st.plotly_chart(
+        plot_forecast(result),
+        use_container_width=True,
+        config={"displayModeBar": False},
     )
+
+    with st.expander("📍 Where do these numbers come from?"):
+        st.markdown(
+            """
+            - **Data:** Open-Meteo (free, no key) — hourly AQI + pollutants for
+              the last 10 days, forecast weather for the next 4 days.
+            - **Features:** the SAME `build_features()` used in training
+              (lags, rolling windows, change rate, cyclical time, future
+              weather) — no training-serving skew by construction.
+            - **Model:** the registry's production version, fed only the exact
+              columns it was trained on.
+            - **Output:** current observed AQI + predicted AQI at +24h/+48h/+72h.
+            """
+        )
+
+    # --- Row 4: live 10-city leaderboard (worst air right now) ---
+    st.divider()
+    try:
+        render_leaderboard()
+    except Exception as e:
+        st.warning(f"Leaderboard unavailable: {e}")
