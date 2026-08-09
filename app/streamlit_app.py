@@ -96,7 +96,10 @@ with st.sidebar:
         get_forecast.clear()
         st.rerun()
 
-    st.caption("Forecast: +24h / +48h / +72h · US AQI")
+    st.caption(
+        "Forecast: +24h / +48h / +72h · **US EPA AQI scale** · "
+        "source: Open-Meteo (CAMS model)"
+    )
 
 # ---------------------------------------------------------------
 # Main column — the forecast itself
@@ -154,6 +157,21 @@ else:
             """
             - **Data:** Open-Meteo (free, no key) — hourly AQI + pollutants for
               the last 10 days, forecast weather for the next 4 days.
+            - **Scale:** **US EPA AQI** (0–500). Other apps may show China AQI,
+              UK DAQI or Pakistan's scale — the same air gives different
+              numbers on different scales.
+            - **Source:** Open-Meteo's AQI is the **CAMS global atmospheric
+              model** — an estimate averaged over a ~10 km grid cell, not a
+              physical ground station. Apps like IQAir/AccuWeather usually
+              show readings from nearby stations, so small differences (5–20
+              points) are expected even on the same scale.
+            - **Timing:** the "Current AQI" is the last observed **hourly**
+              value; many apps show a 12–24h nowcast instead, which lags
+              spikes.
+            - **Why this is fine:** the model was *trained* on the same
+              Open-Meteo/CAMS source, so training and live inference are
+              consistent — that is what makes the +24h/+48h/+72h forecast
+              reliable, which is the actual goal.
             - **Features:** the SAME `build_features()` used in training
               (lags, rolling windows, change rate, cyclical time, future
               weather) — no training-serving skew by construction.
