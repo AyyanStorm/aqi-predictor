@@ -336,7 +336,7 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 | 17 | Wed 12 Aug | Streamlit fundamentals: layout, widgets, caching, session state; first working page | `app/streamlit_app.py` | `feat: streamlit dashboard skeleton` | ✅ done |
 | 18 | Thu 13 Aug | Three-tier geolocation + geocoding search; reverse-geocode to a display name | `src/utils/geo.py`, `app/components/location_picker.py` | `feat: automatic user geolocation with fallbacks` | ✅ done |
 | 19 | Fri 14 Aug | Plotly charts, AQI colour bands, health messages, hazardous-AQI alerts; **live 10-city leaderboard** ("worst city right now", unique feature); FastAPI `/predict` endpoint (brief: Streamlit **and** FastAPI) | `src/utils/aqi_utils.py`, `app/components/charts.py`, `forecast_cards.py`, `app/components/leaderboard.py`, `app/api.py` | `feat: interactive charts, hazard alerts, city leaderboard, and FastAPI endpoint` | ✅ done |
-| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard; **talking SHAP** — natural-language "why" sentence per forecast (unique feature); **smog-season event annotations** on trend charts (from `events.py`, already shipped) | `src/utils/explain.py`, `app/components/explanation.py` | `feat: SHAP explainability, talking SHAP, and event annotations in dashboard` | ⬜ |
+| 20 | Sat 15 Aug | SHAP: global + per-prediction explanations rendered in the dashboard; **talking SHAP** — natural-language "why" sentence per forecast (unique feature); **smog-season event annotations** on trend charts (from `events.py`, already shipped) | `src/utils/explain.py`, `app/components/explanation.py` | `feat: SHAP explainability, talking SHAP, and event annotations in dashboard` | ✅ done |
 
 ### Phase 4 — Automation (Days 21–24)
 
