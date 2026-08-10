@@ -1,0 +1,68 @@
+name: training_pipeline
+
+# Day 22: the daily training workflow.
+#
+# Every morning this workflow reads the feature store (Parquet files
+# committed by the hourly feature pipeline — Plan B, no Hopsworks),
+# retrains the models with walk-forward CV, registers them in the Model
+# Registry, and AUTO-PROMOTES the best version if it beats the current
+# production model (Day 14 promote_if_better).
+#
+# Why cron + workflow_dispatch (roadmap R6): cron is the scheduled
+# trigger; workflow_dispatch lets us run it manually from the Actions
+# tab when testing or after a deploy — never rely on cron alone.
+
+on:
+  schedule:
+    # Daily at 06:30 PKT = 01:30 UTC — after a night of hourly refreshes.
+    - cron: "30 1 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  # Don't stack training runs; a newer run supersedes an older one.
+  group: training-pipeline
+  cancel-in-progress: true
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write   # Plan B: commit the updated model registry back
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily training + registry promotion
+        env:
+          # No Hopsworks secrets -> get_feature_store() falls back to the
+          # Parquet store that the hourly feature pipeline committed.
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+          HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
+          HOPSWORKS_PORT: ${{ secrets.HOPSWORKS_PORT }}
+        run: python -m src.training.train --model lgbm --register --n-splits 4
+
+      - name: Persist model registry to repo (Plan B)
+        # Runner disks are wiped after each run — commit the registry so
+        # the promoted production model survives and the dashboard can
+        # load it. GITHUB_TOKEN pushes don't re-trigger workflows.
+        run: |
+          git config user.name "aqi-predictor[bot]"
+          git config user.email "aqi-predictor[bot]@users.noreply.github.com"
+          git add data/models/registry/
+          if git diff --cached --quiet; then
+            echo "No registry changes (candidate did not beat production)"
+          else
+            git commit -m "ci: daily retraining + auto-promotion"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

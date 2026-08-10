@@ -27,13 +27,29 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Data & models — belong in Feature Store / Model Registry, never in git
-data/
+# Data & models — belong in Feature Store / Model Registry, never in git.
+#
+# Plan B (no Hopsworks yet): the Parquet feature store and the joblib
+# model registry ARE the persistent state now, and they live IN the repo
+# so the GitHub Actions pipelines can share them across runs. Everything
+# else under data/ stays ignored.
+#
+# `data/*` (not `data/`) so the dirs below can be re-included; the Plan B
+# negations must come LAST — later lines win in gitignore.
+data/*
 *.csv
 *.parquet
 *.pkl
 *.joblib
 *.h5
+
+# --- Plan B: feature store + model registry live in the repo ---
+!data/processed/
+!data/processed/feature_store_parquet/
+!data/processed/feature_store_parquet/*.parquet
+!data/models/
+!data/models/registry/
+!data/models/registry/**
 
 # HTTP response cache
 .cache.sqlite

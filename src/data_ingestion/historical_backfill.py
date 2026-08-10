@@ -146,19 +146,23 @@ def _engineer(df):
     return df.reset_index()       # `date` back to a column (store event time)
 
 
-def backfill_city(city_name, lat, lon):
+def backfill_city(city_name, lat, lon, start_date=None):
     """
     Fetch + merge AQI and weather data for ONE city, save the raw frame to
     data/raw/ IMMEDIATELY, and return (engineered, raw) frames. The raw CSV
     is written before engineering so a failure downstream never leaves the
     city's file stale.
+
+    start_date overrides HISTORICAL_START_DATE (used by --days for the
+    Plan B seed window).
     """
+    start = start_date or HISTORICAL_START_DATE
     aqi_df = _fetch_city_chunked(
-        lat, lon, HISTORICAL_START_DATE, END_DATE, AIR_QUALITY_URL,
+        lat, lon, start, END_DATE, AIR_QUALITY_URL,
         fetch_air_quality, "aqi",
     )
     weather_df = _fetch_city_chunked(
-        lat, lon, HISTORICAL_START_DATE, END_DATE, ARCHIVE_URL,
+        lat, lon, start, END_DATE, ARCHIVE_URL,
         fetch_weather, "weather", WEATHER_VARIABLES,
     )
 
@@ -248,7 +252,16 @@ if __name__ == "__main__":
         "--workers", type=int, default=DEFAULT_WORKERS,
         help=f"concurrent cities (default: {DEFAULT_WORKERS})",
     )
+    parser.add_argument(
+        "--days", type=int, default=None,
+        help="Only backfill the last N days (Plan B seed window). "
+             "Default: full history from HISTORICAL_START_DATE.",
+    )
     args = parser.parse_args()
+
+    start_date = None
+    if args.days:
+        start_date = (date.today() - timedelta(days=args.days)).isoformat()
 
     if args.cities:
         wanted = {c.strip() for c in args.cities.split(",")}
@@ -261,11 +274,11 @@ if __name__ == "__main__":
     raw_total = 0
 
     logger.info(f"Backfill starting: {len(cities)} cities, {args.workers} workers, "
-                f"{HISTORICAL_START_DATE} -> {END_DATE}")
+                f"{start_date or HISTORICAL_START_DATE} -> {END_DATE}")
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = {
-            executor.submit(backfill_city, name, coords["lat"], coords["lon"]): name
+            executor.submit(backfill_city, name, coords["lat"], coords["lon"], start_date): name
             for name, coords in cities.items()
         }
         for future in as_completed(futures):
