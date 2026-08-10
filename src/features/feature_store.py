@@ -144,10 +144,31 @@ class ParquetFeatureStore(FeatureStore):
         return self.root / f"{safe}.parquet"
 
     def write_features(self, df):
+        """Upsert (merge on city+date) so history accumulates across runs.
+
+        Plan B (no Hopsworks): the Parquet store is the persistent store,
+        so an hourly refresh must MERGE into the existing files, not
+        overwrite them — otherwise the store only ever holds the trailing
+        ingest window and there is no history to train on. Matches the
+        documented upsert contract of the Hopsworks adapter.
+        """
         df = df.copy()
+        if EVENT_TIME_COLUMN in df.columns:
+            df[EVENT_TIME_COLUMN] = pd.to_datetime(df[EVENT_TIME_COLUMN])
         for city, group in df.groupby(PRIMARY_KEY):
-            group.to_parquet(self._path(city), index=False)
-        logger.info(f"Wrote {len(df)} rows to Parquet fallback ({self.root})")
+            path = self._path(city)
+            if path.exists():
+                old = pd.read_parquet(path)
+                if EVENT_TIME_COLUMN in old.columns:
+                    old[EVENT_TIME_COLUMN] = pd.to_datetime(old[EVENT_TIME_COLUMN])
+                merged = pd.concat([old, group], ignore_index=True)
+                merged = merged.drop_duplicates(
+                    subset=[PRIMARY_KEY, EVENT_TIME_COLUMN], keep="last"
+                ).sort_values(EVENT_TIME_COLUMN)
+            else:
+                merged = group
+            merged.to_parquet(path, index=False)
+        logger.info(f"Upserted {len(df)} rows to Parquet fallback ({self.root})")
 
     def read_features(self, start=None, end=None, cities=None):
         if cities is None:

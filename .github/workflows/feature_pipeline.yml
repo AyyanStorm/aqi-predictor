@@ -28,6 +28,8 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write   # Plan B: commit the refreshed Parquet store back
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -51,3 +53,20 @@ jobs:
           HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
           HOPSWORKS_PORT: ${{ secrets.HOPSWORKS_PORT }}
         run: python -m src.data_ingestion.hourly_ingest
+
+      - name: Persist feature store to repo (Plan B)
+        # No Hopsworks yet -> the store is Parquet files on the runner,
+        # and runner disks are wiped after each run. Commit them back to
+        # the repo so the store survives and the daily training pipeline
+        # can read it. GITHUB_TOKEN pushes don't re-trigger workflows, so
+        # this can't loop.
+        run: |
+          git config user.name "aqi-predictor[bot]"
+          git config user.email "aqi-predictor[bot]@users.noreply.github.com"
+          git add data/processed/feature_store_parquet/
+          if git diff --cached --quiet; then
+            echo "No feature store changes"
+          else
+            git commit -m "ci: refresh hourly feature store"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
