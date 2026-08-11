@@ -54,6 +54,24 @@ _HEADERS = {
 }
 
 
+# Compact labels for countries whose official geocoding name is long.
+# Used in the dashboard heading ("AQI Predictor — UK" instead of
+# "— United Kingdom"). Unmapped countries keep their full name.
+COUNTRY_SHORT = {
+    "United Arab Emirates": "UAE",
+    "United Kingdom": "UK",
+    "United States": "USA",
+    "United States of America": "USA",
+}
+
+
+def short_country(country):
+    """Short display label for a country name (None stays None)."""
+    if not country:
+        return None
+    return COUNTRY_SHORT.get(country, country)
+
+
 def geocode(query, count=5):
     """
     Search Open-Meteo's geocoding API for a place name.

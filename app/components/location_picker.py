@@ -14,10 +14,15 @@ The roadmap's location detection, in one component:
 
 Everything resolves to a location dict that lives in st.session_state:
 
-    {"name": "Karachi", "lat": 24.8608, "lon": 67.0104, "source": "browser"}
+    {"name": "Karachi", "lat": 24.8608, "lon": 67.0104,
+     "source": "browser", "country": "Pakistan"}
 
     source ∈ {"browser", "ip", "search", "quick-pick"} — shown in the UI
     so it's obvious WHICH tier won, and lets us debug silently.
+    country is the display country of the resolved location (e.g.
+    "Pakistan", "United Arab Emirates") — the dashboard heading uses it
+    so the title stays in sync with the selected city. It may be None
+    when a source can't determine it (rare coordinate fallbacks).
 
 The 10 training cities stay available as a quick-pick dropdown (the
 Day 17 default), so the widget never takes a capability away.
@@ -47,6 +52,7 @@ def _default_location():
         "lat": CITIES["Karachi"]["lat"],
         "lon": CITIES["Karachi"]["lon"],
         "source": "quick-pick",
+        "country": "Pakistan",
     }
 
 
@@ -58,6 +64,7 @@ def _apply_quick_pick():
         "lat": CITIES[city]["lat"],
         "lon": CITIES[city]["lon"],
         "source": "quick-pick",
+        "country": "Pakistan",  # the 10 training cities are all Pakistani
     }
 
 
@@ -72,6 +79,7 @@ def _apply_search_match():
         "lat": r["latitude"],
         "lon": r["longitude"],
         "source": "search",
+        "country": r.get("country"),  # Open-Meteo geocoding returns it
     }
     logger.info(f"Location set by search: {_label(r)}")
 
@@ -101,6 +109,9 @@ def location_picker():
                 name = reverse_geocode(lat, lon) or f"{lat:.2f}, {lon:.2f}"
                 st.session_state[LOCATION_KEY] = {
                     "name": name, "lat": lat, "lon": lon, "source": "browser",
+                    # reverse_geocode returns "City, Region, Country" — the
+                    # country is the last comma-separated part.
+                    "country": _country_from_name(name),
                 }
                 logger.info(f"Location set by browser geolocation: {name}")
             else:
@@ -113,6 +124,7 @@ def location_picker():
                             or f"{lat:.2f}, {lon:.2f}")
                     st.session_state[LOCATION_KEY] = {
                         "name": name, "lat": lat, "lon": lon, "source": "ip",
+                        "country": ip.get("country_name"),
                     }
                     logger.info(f"Location set by IP: {name}")
                 else:
@@ -168,3 +180,18 @@ def location_picker():
 
     st.caption(f"Active: **{loc['name']}** · source: `{loc['source']}`")
     return st.session_state[LOCATION_KEY]
+
+
+def _country_from_name(name):
+    """Last comma-separated part of a reverse-geocoded display name.
+
+    reverse_geocode() returns "City, Region, Country" — the country is
+    the final part. Coordinate fallbacks like "24.86, 67.01" have no
+    country; return None so callers can omit it gracefully.
+    """
+    if not name or "," not in name:
+        return None
+    parts = [p.strip() for p in name.split(",") if p.strip()]
+    last = parts[-1] if parts else None
+    # Coordinates ("24.86") aren't a country; anything with a digit is.
+    return last if last and not any(ch.isdigit() for ch in last) else None

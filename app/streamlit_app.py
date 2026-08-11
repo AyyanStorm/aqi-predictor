@@ -63,8 +63,19 @@ from app.components.explanation import (
 
 logger = get_logger(__name__)
 
+# --- Dynamic country for the heading (Day 23 UI polish) ---
+# The "— <country>" suffix follows the SELECTED location, never hardcoded:
+# quick-pick → Pakistan · search → geocode country · GPS/IP → reverse/
+# IP country. On the very first load session state is empty, so the tab
+# title starts country-less; the visible heading below always resolves
+# against the live location (the sidebar sets it before the main column).
+from src.utils.geo import short_country
+
+_location = st.session_state.get("location")
+_page_country = short_country(_location.get("country")) if _location else None
 st.set_page_config(
-    page_title="AQI Predictor — Pakistan",
+    page_title=("AQI Predictor"
+                + (f" — {_page_country}" if _page_country else "")),
     page_icon="🌫️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -110,7 +121,11 @@ with st.sidebar:
 # ---------------------------------------------------------------
 # Main column — the forecast itself
 # ---------------------------------------------------------------
-st.title("🌫️ AQI Predictor — Pakistan")
+# Heading is dynamic: the country suffix follows the selected location
+# (e.g. Karachi → "— Pakistan", Dubai → "— UAE", London → "— UK").
+# short_country() maps long official names to compact labels.
+_country = short_country(loc.get("country"))
+st.title("🌫️ AQI Predictor" + (f" — {_country}" if _country else ""))
 st.caption(
     f"Live air quality forecast for **{city}** · "
     "city-agnostic model trained on 10 Pakistani cities · "
