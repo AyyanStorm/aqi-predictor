@@ -45,13 +45,15 @@ jobs:
         run: python -m src.data_ingestion.historical_backfill
 
       - name: Persist refreshed CSVs to repo (Plan B)
+        # data/raw/ and data/processed/all_cities_engineered.csv are
+        # gitignored — only the tracked parquet store is committed back.
         run: |
           git config user.name "aqi-predictor[bot]"
           git config user.email "aqi-predictor[bot]@users.noreply.github.com"
-          git add data/raw/ data/processed/
+          git add data/processed/feature_store_parquet/
           if git diff --cached --quiet; then
-            echo "No CSV changes"
+            echo "No feature store changes"
           else
-            git commit -m "ci: refresh backfill CSVs"
+            git commit -m "ci: refresh feature store parquet (backfill)"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
