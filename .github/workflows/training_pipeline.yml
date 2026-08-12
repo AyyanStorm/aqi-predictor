@@ -40,12 +40,18 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # Training must read the FEATURE STORE, and the store is now
+        # Hopsworks — so this env installs hopsworks too (via
+        # requirements-training.txt, which is requirements-feature-store.txt
+        # + the ML stack, deliberately without keras: hopsworks pins
+        # protobuf<5.0.0 which hard-conflicts with keras in requirements.txt).
+        run: pip install -r requirements-training.txt
 
       - name: Run daily training + registry promotion
         env:
-          # No Hopsworks secrets -> get_feature_store() falls back to the
-          # Parquet store that the hourly feature pipeline committed.
+          # Hopsworks secrets + installed client -> get_feature_store()
+          # returns the Hopsworks backend and training reads the live
+          # feature store instead of the Parquet fallback.
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
           HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
           HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}

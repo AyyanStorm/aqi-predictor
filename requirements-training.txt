@@ -1,0 +1,18 @@
+# requirements-training.txt — training-pipeline env.
+#
+# The training pipeline must read the FEATURE STORE. Now that Hopsworks
+# is live, that means hopsworks must be installed HERE too (it is not in
+# requirements.txt on purpose: hopsworks pins protobuf<5.0.0, which
+# HARD-CONFLICTS with keras in the dashboard env).
+#
+# So this env = the feature-store requirements (hopsworks + its deps)
+# + the ML stack training actually uses (no keras, no streamlit).
+#
+# Used by .github/workflows/training_pipeline.yml (Linux, Python 3.12 —
+# twofish/pyjks build fine there with gcc).
+-r requirements-feature-store.txt
+
+# ML stack for src/training/train.py (walk-forward CV + registry).
+lightgbm
+scikit-learn
+joblib

@@ -1,0 +1,57 @@
+name: backfill_pipeline
+
+# One-shot: seed the FULL history into the Hopsworks feature store.
+#
+# The hourly feature pipeline only keeps a trailing window, so the first
+# time Hopsworks is enabled the store is nearly empty. Run this once
+# (Actions tab -> backfill_pipeline -> Run workflow) to backfill ~4 years
+# of engineered features for all 10 cities into Hopsworks. Safe to re-run:
+# write_features upserts on (city, date), so repeats just merge.
+#
+# Why separate from feature_pipeline: that one runs hourly; this one is a
+# manual, heavy, one-time seed. Kept manual on purpose (workflow_dispatch
+# only, no cron).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write   # persist refreshed raw/engineered CSVs (Plan B)
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        # hopsworks can't live in the same env as keras/pandas-3, so the
+        # feature-store scripts use their own requirements file.
+        run: pip install -r requirements-feature-store.txt
+
+      - name: Run full historical backfill -> Hopsworks
+        env:
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+          HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
+          HOPSWORKS_PORT: ${{ secrets.HOPSWORKS_PORT }}
+        run: python -m src.data_ingestion.historical_backfill
+
+      - name: Persist refreshed CSVs to repo (Plan B)
+        run: |
+          git config user.name "aqi-predictor[bot]"
+          git config user.email "aqi-predictor[bot]@users.noreply.github.com"
+          git add data/raw/ data/processed/
+          if git diff --cached --quiet; then
+            echo "No CSV changes"
+          else
+            git commit -m "ci: refresh backfill CSVs"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
