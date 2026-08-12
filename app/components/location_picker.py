@@ -32,7 +32,7 @@ import streamlit as st
 from streamlit_js_eval import get_geolocation
 
 from src.config import CITIES
-from src.utils.geo import geocode, locate_by_ip, reverse_geocode
+from src.utils.geo import geocode, locate_by_ip, resolve_timezone, reverse_geocode
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,18 +53,26 @@ def _default_location():
         "lon": CITIES["Karachi"]["lon"],
         "source": "quick-pick",
         "country": "Pakistan",
+        # IANA timezone, resolved dynamically (never hardcoded) — the
+        # quick-pick cities never hit geocoding, so we resolve by
+        # lat/lon via Open-Meteo (timezone=auto), cached 1h.
+        "timezone": resolve_timezone(
+            CITIES["Karachi"]["lat"], CITIES["Karachi"]["lon"], name="Karachi"
+        ),
     }
 
 
 def _apply_quick_pick():
     """on_change callback: quick-pick dropdown changed."""
     city = st.session_state["geo_quick"]
+    lat, lon = CITIES[city]["lat"], CITIES[city]["lon"]
     st.session_state[LOCATION_KEY] = {
         "name": city,
-        "lat": CITIES[city]["lat"],
-        "lon": CITIES[city]["lon"],
+        "lat": lat,
+        "lon": lon,
         "source": "quick-pick",
         "country": "Pakistan",  # the 10 training cities are all Pakistani
+        "timezone": resolve_timezone(lat, lon, name=city),
     }
 
 
@@ -80,6 +88,9 @@ def _apply_search_match():
         "lon": r["longitude"],
         "source": "search",
         "country": r.get("country"),  # Open-Meteo geocoding returns it
+        # Open-Meteo geocoding already provides the IANA timezone for
+        # the match — take it straight from the result (no extra call).
+        "timezone": r.get("timezone"),
     }
     logger.info(f"Location set by search: {_label(r)}")
 
@@ -112,6 +123,9 @@ def location_picker():
                     # reverse_geocode returns "City, Region, Country" — the
                     # country is the last comma-separated part.
                     "country": _country_from_name(name),
+                    # Browser GPS gives coordinates only — resolve the
+                    # IANA timezone from lat/lon (timezone=auto, cached).
+                    "timezone": resolve_timezone(lat, lon),
                 }
                 logger.info(f"Location set by browser geolocation: {name}")
             else:
@@ -125,6 +139,7 @@ def location_picker():
                     st.session_state[LOCATION_KEY] = {
                         "name": name, "lat": lat, "lon": lon, "source": "ip",
                         "country": ip.get("country_name"),
+                        "timezone": resolve_timezone(lat, lon),
                     }
                     logger.info(f"Location set by IP: {name}")
                 else:

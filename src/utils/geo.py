@@ -22,6 +22,7 @@ app/components/location_picker.py.
 import requests_cache
 from retry_requests import retry
 
+from src.config import FORECAST_URL
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,6 +64,50 @@ COUNTRY_SHORT = {
     "United States": "USA",
     "United States of America": "USA",
 }
+
+
+def resolve_timezone(lat, lon, name=None):
+    """
+    Resolve the IANA timezone (e.g. "Asia/Karachi") for a location.
+
+    Two strategies, both through the cached+retrying session:
+
+      1. name lookup — Open-Meteo geocoding results carry a `timezone`
+         field (the path the roadmap picked: "geocoding already
+         provides the timezone"). Only used when `name` is a plain
+         city name ("Karachi"); comma labels like
+         "Karachi, Sindh, Pakistan" skip this and go straight to 2.
+      2. lat/lon — Open-Meteo forecast API with `timezone=auto`
+         returns the IANA timezone for ANY coordinates on Earth
+         (covers quick-pick, GPS and IP locations that never hit
+         geocoding).
+
+    Returns the IANA name, or None when both fail (offline, unknown
+    place) — callers degrade gracefully instead of crashing.
+    """
+    if name and "," not in name:
+        try:
+            results = geocode(name, count=1)
+            tz = results[0].get("timezone") if results else None
+            if tz:
+                logger.info(f"resolve_timezone('{name}') -> {tz} (geocoding)")
+                return tz
+        except Exception as e:
+            logger.warning(f"resolve_timezone: geocode('{name}') failed: {e}")
+
+    try:
+        params = {
+            "latitude": lat, "longitude": lon,
+            "timezone": "auto", "forecast_days": 1,
+        }
+        resp = _geo_session.get(FORECAST_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        tz = resp.json().get("timezone")
+        logger.info(f"resolve_timezone({lat}, {lon}) -> {tz} (timezone=auto)")
+        return tz
+    except Exception as e:
+        logger.warning(f"resolve_timezone({lat}, {lon}) failed: {e}")
+        return None
 
 
 def short_country(country):

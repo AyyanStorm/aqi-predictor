@@ -152,7 +152,9 @@ else:
     # runs, but this keeps bare/edge executions from falling through).
 
     # --- Row 1: colour-coded forecast cards (EPA bands + health message) ---
-    render_forecast_cards(result)
+    # loc carries the resolved IANA timezone -> each card shows its local
+    # date/time, ticking live via the fragment inside render_forecast_cards.
+    render_forecast_cards(result, loc)
 
     # --- Row 2: trend chart (observed history + forecast points) ---
     st.divider()
