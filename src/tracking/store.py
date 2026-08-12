@@ -132,7 +132,15 @@ class HopsworksPredictionStore(PredictionStore):
 
 
 class ParquetPredictionStore(PredictionStore):
-    """Local-disk fallback with the same interface."""
+    """Local-disk fallback with the same interface.
+
+    Corrupt-file safe (16:38 bug): a torn/empty predictions.parquet
+    (concurrent sessions or an interrupted write) used to crash load()
+    with "Couldn't deserialize thrift: No more data to read", which
+    silently produced "No tracked predictions" everywhere. Now load()
+    quarantines the bad file and starts fresh, and save() writes
+    atomically (tmp + replace) so the file can never tear again.
+    """
 
     def __init__(self, root=None):
         self.root = Path(root) if root else TRACKING_DIR
@@ -141,19 +149,41 @@ class ParquetPredictionStore(PredictionStore):
 
     def save(self, record: dict):
         new = _normalize(pd.DataFrame([record]))
-        old = self.load()
+        old = self.load()  # never raises (corrupt file is quarantined)
         if not old.empty:
             merged = pd.concat([old, new], ignore_index=True)
             merged = merged.drop_duplicates(subset=[PREDICTIONS_PK], keep="last")
         else:
             merged = new
-        merged.to_parquet(self._path, index=False)
+        # Atomic write: write to a temp file, then replace — an interrupted
+        # write can never leave a half-written (0-byte) parquet behind.
+        tmp = self._path.with_suffix(".parquet.tmp")
+        merged.to_parquet(tmp, index=False)
+        tmp.replace(self._path)
         logger.info(f"Saved prediction {record.get('prediction_id')} to Parquet")
 
     def load(self, user_id=None, city=None):
         if not self._path.exists():
             return pd.DataFrame()
-        df = _normalize(pd.read_parquet(self._path))
+        try:
+            df = _normalize(pd.read_parquet(self._path))
+        except Exception as e:
+            # Corrupt/empty file (0 bytes, truncated, wrong schema). Never
+            # crash the dashboard: quarantine it and return an empty store
+            # so tracking can start fresh on the next save.
+            logger.warning(f"Corrupt prediction store ({e}) — quarantining "
+                           f"and starting fresh")
+            backup = self._path.with_name(
+                f"predictions.corrupt.{int(__import__('time').time())}.parquet"
+            )
+            try:
+                self._path.rename(backup)
+            except Exception:
+                try:
+                    self._path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            return pd.DataFrame()
         if user_id is not None:
             df = df[df["user_id"] == user_id]
         if city is not None:
