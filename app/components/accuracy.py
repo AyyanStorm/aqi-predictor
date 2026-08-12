@@ -46,20 +46,39 @@ ACTUAL_COLOR = "#4fc3f7"
 # ---------------------------------------------------------------
 def get_user_id():
     """
-    Stable anonymous id per browser. Stored in localStorage via
-    streamlit-js-eval, mirrored in session_state so it survives reruns.
-    Falls back to a session-scoped uuid when the JS bridge is
-    unavailable (bare mode / tests) — still per-browser in practice.
+    Stable anonymous id per browser (Q4: per-browser, private).
+
+    Stored in localStorage via streamlit-js-eval, mirrored in
+    session_state so it survives reruns.
+
+    FIX (16:17 bug): on a FRESH page load the JS bridge hasn't rendered
+    yet, so the first get_local_storage() returns None EVEN IF an id is
+    already stored. The old code then generated a new id and overwrote
+    localStorage — orphaning every previous prediction, which is why the
+    user saw "No tracked predictions" on the next visit after seeing the
+    graph the first time.
+
+    Fix: rerun once so the component value arrives, then ADOPT the
+    stored id. Only create a new id when a second read still returns
+    None (genuinely fresh browser).
     """
     if USER_ID_KEY in st.session_state:
         return st.session_state[USER_ID_KEY]
     try:
         stored = get_local_storage(USER_ID_KEY)
-        if stored:
-            st.session_state[USER_ID_KEY] = stored
-            return stored
     except Exception as e:
         logger.warning(f"localStorage read failed: {e}")
+        stored = None
+    if stored:
+        st.session_state[USER_ID_KEY] = stored
+        return stored
+    if not st.session_state.get("_user_id_retried"):
+        # First render of this page load: None may mean "JS not ready
+        # yet", not "no id". Rerun once so the bridge delivers the real
+        # stored value instead of us clobbering it with a fresh uuid.
+        st.session_state["_user_id_retried"] = True
+        st.rerun()
+    # Second read also empty -> genuinely new browser: create + persist.
     uid = str(uuid.uuid4())
     st.session_state[USER_ID_KEY] = uid
     try:

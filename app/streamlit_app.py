@@ -162,11 +162,11 @@ else:
     render_forecast_cards(result, loc)
 
     # --- AQI tracking + accuracy (Day 24): automatic, per-browser. ---
-    # Save this prediction (idempotent) and render the Prediction-vs-Actual
-    # section + Your Average Accuracy. Everything is defensive — a tracking
-    # failure must never break the forecast UI.
+    # Resolve the browser id OUTSIDE the try block: get_user_id() may
+    # st.rerun() once on a fresh load (to adopt the stored id instead of
+    # overwriting it) — that rerun must propagate, not be swallowed.
+    _user_id = get_user_id()
     try:
-        _user_id = get_user_id()
         maybe_save_prediction(_user_id, loc, result)
         render_accuracy(_user_id, loc)
     except Exception as e:
