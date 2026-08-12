@@ -41,4 +41,7 @@ pyarrow
 #       "opensearch-py<=2.4.2,>=1.1.0" tqdm "grpcio<2.0.0,>=1.49.1" \
 #       "protobuf<5.0.0,>=4.25.4" packaging "hopsworks-apigen<2.0.0,>=1.0.4" \
 #       "click>=8.1" tomli-w build pyhumps==1.6.1 pyarrow
+#   # fg.insert() requires the Kafka client (offset checkpointing) — it is
+#   # part of hopsworks[python] extras, which --no-deps skips:
+#   pip install "confluent-kafka<=2.11.1"
 #   python -c "import hopsworks; print(hopsworks.__version__)"
