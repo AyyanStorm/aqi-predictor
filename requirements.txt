@@ -1,6 +1,8 @@
 openmeteo-requests
 requests-cache
 retry-requests
+tzdata  # IANA tz database for zoneinfo — Windows Python ships none, so
+        # ZoneInfo() would raise ZoneInfoNotFoundError there (Day 24)
 pandas
 numpy
 python-dotenv

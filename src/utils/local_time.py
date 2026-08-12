@@ -78,7 +78,10 @@ def format_local_dt(ts):
     """
     if ts is None:
         return None
-    date_part = ts.strftime("%b %-d, %Y")
+    # NOTE: no "%-d" here — that GNU strftime extension is Linux/macOS
+    # only and CRASHES on Windows (ValueError: Invalid format string).
+    # Build the day from ts.day (an int, portable everywhere) instead.
+    date_part = f"{ts.strftime('%b')} {ts.day}, {ts.year}"
     time_part = ts.strftime("%I:%M %p").lstrip("0")
     return f"{date_part} — {time_part}"
 
