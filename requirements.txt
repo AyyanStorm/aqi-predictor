@@ -18,3 +18,5 @@ uvicorn
 plotly
 streamlit-js-eval  # browser geolocation
 shap  # Day 20 explainability
+hopsworks  # Hopsworks feature-store client (Day 7 adapter; enabled now that
+           # AYYAN's cluster + API key exist)
