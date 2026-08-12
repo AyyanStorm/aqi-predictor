@@ -126,6 +126,16 @@ class HopsworksFeatureStore(FeatureStore):
         return fg
 
     def write_features(self, df):
+        # Guard: an empty frame (e.g. a backfill window with no complete
+        # targets) must be a no-op, NOT a crash. Hopsworks cannot infer a
+        # schema from zero rows ("dtype 'null' not supported").
+        if df is None or df.empty:
+            logger.warning(
+                "write_features: nothing to write (empty DataFrame) — "
+                "skipping Hopsworks insert. Use a backfill window with "
+                "enough history for complete +24/+48/+72h targets."
+            )
+            return
         fg = self._connect()
         df = df.copy()
         # Hopsworks expects the event-time column as a pandas Timestamp.
@@ -172,6 +182,12 @@ class ParquetFeatureStore(FeatureStore):
         ingest window and there is no history to train on. Matches the
         documented upsert contract of the Hopsworks adapter.
         """
+        if df is None or df.empty:
+            logger.warning(
+                "write_features: nothing to write (empty DataFrame) — "
+                "skipping Parquet upsert."
+            )
+            return
         df = df.copy()
         if EVENT_TIME_COLUMN in df.columns:
             df[EVENT_TIME_COLUMN] = pd.to_datetime(df[EVENT_TIME_COLUMN])
