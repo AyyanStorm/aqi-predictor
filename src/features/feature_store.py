@@ -24,6 +24,9 @@ never drift apart):
     event time    : date   (hourly timestamp)
 """
 
+import os
+import tempfile
+
 import pandas as pd
 
 from src.config import (
@@ -79,11 +82,18 @@ class HopsworksFeatureStore(FeatureStore):
 
         import hopsworks  # lazy import: only needed for the real backend
 
+        # cert_folder: hopsworks defaults to /tmp (Linux-style), which
+        # DOES NOT EXIST on Windows -> FileNotFoundError during login.
+        # Use the OS temp dir instead (C:\Users\...\Temp on Windows,
+        # /tmp on Linux) so the same code works on both.
+        cert_folder = os.path.join(tempfile.gettempdir(), "hopsworks_certs")
+
         project = hopsworks.login(
             project=HOPSWORKS_PROJECT,
             host=HOPSWORKS_HOST,
             port=HOPSWORKS_PORT,
             api_key_value=HOPSWORKS_API_KEY,
+            cert_folder=cert_folder,
         )
         fs = project.get_feature_store()
 
