@@ -113,6 +113,12 @@ class HopsworksFeatureStore(FeatureStore):
                 primary_key=[PRIMARY_KEY],
                 event_time=EVENT_TIME_COLUMN,
                 online_enabled=False,  # offline-only is fine and saves quota
+                # hsfs 5.x DEFAULTS to time_travel_format="DELTA", which needs
+                # the delta-rs library client-side. That library is
+                # Linux/macOS-only (hops-deltalake) — unavailable on Windows
+                # and not installed in our --no-deps venv/CI. HUDI needs
+                # nothing extra and supports the same upserts + time travel.
+                time_travel_format="HUDI",
             )
             logger.info(f"Created feature group {FEATURE_GROUP_NAME} v{FEATURE_GROUP_VERSION}")
 
