@@ -27,18 +27,46 @@ import streamlit as st
 from streamlit_js_eval import get_local_storage, set_local_storage
 
 from src.tracking import accuracy as acc
-from src.tracking.store import get_prediction_store, new_prediction_id
+from src.tracking.store import (
+    ParquetPredictionStore,
+    get_prediction_store,
+    new_prediction_id,
+)
 from src.utils.local_time import tz_display_name
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 USER_ID_KEY = "aqi_user_id"
+STORE_KEY = "aqi_tracking_store"
 
 # Chart colours — distinguishable on the dark theme:
 #   predicted = amber, actual = light blue (colourblind-safe pairing).
 PRED_COLOR = "#ffb74d"
 ACTUAL_COLOR = "#4fc3f7"
+
+
+# ---------------------------------------------------------------
+# Store resolution (resilient: Hopsworks -> Parquet fallback)
+# ---------------------------------------------------------------
+def _resolve_store():
+    """
+    One store per session, cached in session_state so save and load
+    ALWAYS hit the same backend. Prefers Hopsworks when configured and
+    installed; falls back to Parquet on any failure.
+    """
+    if STORE_KEY in st.session_state:
+        return st.session_state[STORE_KEY]
+    store = get_prediction_store()
+    st.session_state[STORE_KEY] = store
+    return store
+
+
+def _fallback_to_parquet():
+    """Force the local Parquet store and remember it for this session."""
+    store = ParquetPredictionStore()
+    st.session_state[STORE_KEY] = store
+    return store
 
 
 # ---------------------------------------------------------------
@@ -96,9 +124,14 @@ def maybe_save_prediction(user_id, loc, result):
     Save the just-generated prediction once. Idempotent: if a prediction
     for the same city + base hour already exists, skip (avoids spamming
     the store on every rerun).
+
+    Resilient: if the preferred (Hopsworks) store fails to write — e.g.
+    the pyjks/twofish wall on Windows — we FALL BACK to the local
+    Parquet store and warn the user, so a write failure can never look
+    like "no tracked predictions".
     """
     try:
-        store = get_prediction_store()
+        store = _resolve_store()
         base = pd.Timestamp(result["fetched_at"]).floor("h")
         existing = store.load(user_id=user_id, city=loc.get("name"))
         if not existing.empty and "base_ts" in existing.columns:
@@ -106,9 +139,21 @@ def maybe_save_prediction(user_id, loc, result):
                 return  # already tracked this forecast
         record = acc.build_record(user_id, loc, result)
         record["prediction_id"] = new_prediction_id()
-        store.save(record)
+        try:
+            store.save(record)
+        except Exception as e:
+            logger.warning(
+                f"Tracking store write failed ({e}) — falling back to "
+                f"local Parquet store"
+            )
+            _fallback_to_parquet().save(record)
+            st.warning(
+                "⚠️ Could not write this prediction to the remote store, "
+                "so it was saved locally instead. Tracking still works."
+            )
     except Exception as e:
         logger.warning(f"maybe_save_prediction failed (tracking skipped): {e}")
+        st.warning(f"⚠️ Tracking save failed: {e}")
 
 
 # ---------------------------------------------------------------
@@ -237,7 +282,7 @@ def render_accuracy(user_id, loc):
     st.divider()
     st.subheader("📊 Prediction vs Actual AQI")
 
-    store = get_prediction_store()
+    store = _resolve_store()
     try:
         records = store.load(user_id=user_id, city=city)
     except Exception as e:
@@ -289,7 +334,7 @@ def render_accuracy(user_id, loc):
     st.divider()
     st.subheader("🎯 Your Average Accuracy")
     try:
-        all_records = store.load(user_id=user_id)
+        all_records = _resolve_store().load(user_id=user_id)
     except Exception as e:
         logger.warning(f"load all predictions failed: {e}")
         all_records = pd.DataFrame()
