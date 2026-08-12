@@ -18,5 +18,7 @@ uvicorn
 plotly
 streamlit-js-eval  # browser geolocation
 shap  # Day 20 explainability
-hopsworks  # Hopsworks feature-store client (Day 7 adapter; enabled now that
-           # AYYAN's cluster + API key exist)
+# NOTE: hopsworks is deliberately NOT here — it pins protobuf<5.0.0 and
+# pandas<2.4.0, which conflict with keras (protobuf>=5.26.1) and pandas 3.x.
+# It lives in requirements-feature-store.txt, installed in a SEPARATE venv
+# for the feature-pipeline scripts (see that file + feature_pipeline.yml).

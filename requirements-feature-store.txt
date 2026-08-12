@@ -1,0 +1,29 @@
+# requirements-feature-store.txt — Hopsworks feature-store pipeline env.
+#
+# Deliberately SEPARATE from requirements.txt. hopsworks pins
+#   protobuf<5.0.0,>=4.25.4   and   pandas<2.4.0
+# which HARD-CONFLICT with the dashboard/training env:
+#   keras requires protobuf>=5.26.1   (no overlap -> pip cannot resolve)
+#   the venv has pandas 3.x            (hopsworks needs <2.4)
+# They can never live in one environment, so the feature-pipeline scripts
+# (hourly_ingest.py, historical_backfill.py) run in their own venv.
+#
+# Usage (Windows, from the project root):
+#   python -m venv .venv-hs
+#   .venv-hs\Scripts\activate
+#   pip install -r requirements-feature-store.txt
+#   python -c "from src.features.feature_store import HopsworksFeatureStore; \
+#              fg = HopsworksFeatureStore()._connect(); print('connected:', fg.name)"
+#
+# The dashboard/API/training keep working without this env: the adapter
+# lazy-imports hopsworks and falls back to the Parquet store.
+#
+# Requires Python >=3.10,<3.14 (hopsworks' requires_python).
+hopsworks
+openmeteo-requests
+requests-cache
+retry-requests
+pandas<2.4.0
+numpy>=1.26.3,<2.5.0
+python-dotenv
+pyarrow

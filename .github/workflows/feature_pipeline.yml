@@ -41,7 +41,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # hopsworks can't live in the same env as keras/pandas-3, so the
+        # feature pipeline uses its own requirements file (separate venv).
+        run: pip install -r requirements-feature-store.txt
 
       - name: Run hourly ingest
         env:

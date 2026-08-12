@@ -196,13 +196,24 @@ class ParquetFeatureStore(FeatureStore):
 def get_feature_store():
     """
     Factory: return the best available backend. Prefer Hopsworks when the
-    credentials exist; otherwise degrade gracefully to Parquet so nothing
-    downstream ever breaks.
+    credentials exist AND the client is installed; otherwise degrade
+    gracefully to Parquet so nothing downstream ever breaks.
+
+    The hopsworks import check matters: hopsworks pins protobuf<5.0.0 +
+    pandas<2.4.0, which HARD-CONFLICT with keras (protobuf>=5.26.1) and
+    pandas 3.x, so it lives in its own venv (requirements-feature-store.txt).
+    Envs that only install requirements.txt (dashboard, training pipeline)
+    must NOT crash when secrets are set — they just fall back to Parquet.
     """
     if HOPSWORKS_API_KEY and HOPSWORKS_PROJECT:
         try:
+            import importlib.util
+
+            if importlib.util.find_spec("hopsworks") is None:
+                raise ImportError("hopsworks package not installed "
+                                  "(install requirements-feature-store.txt)")
             return HopsworksFeatureStore()
-        except ValueError as exc:
-            logger.warning(f"Hopsworks not configured properly: {exc}")
+        except (ValueError, ImportError) as exc:
+            logger.warning(f"Hopsworks unavailable: {exc}")
     logger.info("Using Parquet fallback feature store")
     return ParquetFeatureStore()
