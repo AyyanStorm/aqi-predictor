@@ -21,6 +21,12 @@
 # Linux CI (GitHub Actions feature_pipeline.yml, has gcc):
 #   pip install -r requirements-feature-store.txt
 hopsworks>=5.0.4,<6
+# fg.insert() needs the Kafka client + avro for the offline materialization
+# job (offset checkpointing / serialization) — part of hopsworks[python]
+# extras, which the base install does NOT include. Without these, insert
+# fails with "Confluent Kafka package not found".
+confluent-kafka<=2.11.1
+fastavro<=1.12.0,>=1.4.11
 openmeteo-requests
 requests-cache
 retry-requests
