@@ -8,18 +8,19 @@
 # They can never live in one environment, so the feature-pipeline scripts
 # (hourly_ingest.py, historical_backfill.py) run in their own venv.
 #
-# Usage (Windows, from the project root):
-#   python -m venv .venv-hs
-#   .venv-hs\Scripts\activate
+# IMPORTANT — hopsworks requires Python >=3.10,<3.14.
+#   Python 3.14 is NOT supported yet (pip rejects 5.x and falls back to
+#   ancient sdists that crash on modern Python — the confusing "No module
+#   named 'imp'" error). Use Python 3.12 or 3.13 for this venv.
+#
+# NOTE — hopsworks also pulls `pyjks` -> `twofish`, and twofish ships NO
+#   wheels (source only, needs a C compiler). On Linux CI (gcc present)
+#   it builds fine. On Windows without MSVC build tools it fails — use
+#   the --no-deps workaround at the bottom of this file instead.
+#
+# Linux CI (GitHub Actions feature_pipeline.yml, has gcc):
 #   pip install -r requirements-feature-store.txt
-#   python -c "from src.features.feature_store import HopsworksFeatureStore; \
-#              fg = HopsworksFeatureStore()._connect(); print('connected:', fg.name)"
-#
-# The dashboard/API/training keep working without this env: the adapter
-# lazy-imports hopsworks and falls back to the Parquet store.
-#
-# Requires Python >=3.10,<3.14 (hopsworks' requires_python).
-hopsworks
+hopsworks>=5.0.4,<6
 openmeteo-requests
 requests-cache
 retry-requests
@@ -27,3 +28,17 @@ pandas<2.4.0
 numpy>=1.26.3,<2.5.0
 python-dotenv
 pyarrow
+#
+# Windows local, no C compiler (verified working): install hopsworks
+# WITHOUT its dependency tree (pyjks/twofish never imported at runtime),
+# then install everything else normally:
+#   py -3.12 -m venv .venv-hs          (or 3.13; recreate if it exists)
+#   .venv-hs\Scripts\activate
+#   pip install "hopsworks==5.0.4" --no-deps
+#   pip install "pandas[mysql]<2.4.0" "numpy<2.5.0,>=1.26.3" \
+#       "fsspec<2025.12.0" requests furl boto3 mock "avro==1.12.0" \
+#       "PyMySQL[rsa]" tzlocal retrying "hopsworks_aiomysql[sa]==0.2.2" \
+#       "opensearch-py<=2.4.2,>=1.1.0" tqdm "grpcio<2.0.0,>=1.49.1" \
+#       "protobuf<5.0.0,>=4.25.4" packaging "hopsworks-apigen<2.0.0,>=1.0.4" \
+#       "click>=8.1" tomli-w build pyhumps==1.6.1 pyarrow
+#   python -c "import hopsworks; print(hopsworks.__version__)"
