@@ -65,6 +65,7 @@ from app.components.accuracy import (
     maybe_save_prediction,
     render_accuracy,
 )
+from app.components.comparison import render_comparison
 
 logger = get_logger(__name__)
 
@@ -171,6 +172,13 @@ else:
         render_accuracy(_user_id, loc)
     except Exception as e:
         logger.warning(f"AQI tracking section skipped: {e}")
+
+    # --- Multi-City Historical vs Predicted comparison (grill-me: A/A/15d+72h/6/UTC). ---
+    # Defensive: a failure here must never break the forecast UI.
+    try:
+        render_comparison()
+    except Exception as e:
+        logger.warning(f"Multi-city comparison section skipped: {e}")
 
     # --- Row 2: trend chart (observed history + forecast points) ---
     st.divider()
