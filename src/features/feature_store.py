@@ -100,9 +100,13 @@ class HopsworksFeatureStore(FeatureStore):
         try:
             fg = fs.get_feature_group(name=FEATURE_GROUP_NAME, version=FEATURE_GROUP_VERSION)
         except Exception:
-            # First run: the feature group doesn't exist yet. Create it with
-            # the schema from config. primary_key + event_time are the
-            # columns Hopsworks uses for upserts and time-travel reads.
+            fg = None  # 5.x can raise on some backends; treat as missing
+        if fg is None:
+            # First run: the feature group doesn't exist yet. hopsworks 5.x
+            # returns None (does NOT raise) when a group is missing, so we
+            # must check the return value, not rely on an exception.
+            # Create it with the schema from config. primary_key + event_time
+            # are the columns Hopsworks uses for upserts and time-travel reads.
             fg = fs.create_feature_group(
                 name=FEATURE_GROUP_NAME,
                 version=FEATURE_GROUP_VERSION,
