@@ -34,7 +34,9 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run app/streamlit_app.py --server.address 0.0.0.0 --server.port $PORT
     envVars:
-      - key: AQI_API_URL
-        value: https://aqi-api.onrender.com
+      # NOTE: the dashboard does DIRECT inference (src.inference.predict) —
+      # it does not call the API service, so no AQI_API_URL is needed here.
+      # If you wire it up later, set it to your real API URL
+      # (https://aqi-api-XXXX.onrender.com), NOT a guess.
       - key: HOPSWORKS_API_KEY
         sync: false # set manually in the Render dashboard (never commit)
