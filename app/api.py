@@ -23,6 +23,7 @@ and (later) the automation workflows. Errors become proper HTTP codes:
 Run locally:  uvicorn app.api:app --reload
 """
 
+import logging
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
@@ -30,7 +31,7 @@ from src.config import CITIES
 from src.inference.predict import predict
 from src.training.model_registry import ModelRegistry
 from src.utils.aqi_utils import aqi_category, health_message
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,36 @@ app = FastAPI(
                 "trained on 10 Pakistani cities.",
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def request_logging(request, call_next):
+    """Structured access log for every request (Day 24 observability).
+
+    Logs method, path, status and duration_ms as one searchable line —
+    the minimum needed to answer "is the API healthy / who is calling
+    it / where is the latency". The event name is http_request so a log
+    drain or Render's log search can filter on it.
+    """
+    import time
+
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        log_event(
+            logger, "http_request", level=logging.ERROR,
+            method=request.method, path=request.url.path,
+            status=500, duration_ms=round((time.perf_counter() - start) * 1000, 1),
+        )
+        raise
+    log_event(
+        logger, "http_request",
+        method=request.method, path=request.url.path,
+        status=response.status_code,
+        duration_ms=round((time.perf_counter() - start) * 1000, 1),
+    )
+    return response
 
 
 @app.get("/health")

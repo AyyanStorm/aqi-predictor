@@ -19,7 +19,23 @@ logger = get_logger(__name__)
 # retries are fail-fast on purpose: with chunked requests (Day 8 fix) a
 # single stall costs seconds, not minutes — 8 retries x 0.5 backoff could
 # burn ~2 minutes per dead request, which made the backfill crawl.
-cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
+class _DefaultTimeoutSession(requests_cache.CachedSession):
+    """CachedSession with a guaranteed request timeout (Day 24).
+
+    The openmeteo client never passes a timeout kwarg, so without this
+    a stalled upstream connection could hang the forecast forever.
+    Injecting a default on every request bounds the worst case to
+    TIMEOUT_S per attempt (x3 retries max) instead of infinity.
+    """
+
+    TIMEOUT_S = 30
+
+    def request(self, method, url, **kwargs):
+        kwargs.setdefault("timeout", self.TIMEOUT_S)
+        return super().request(method, url, **kwargs)
+
+
+cache_session = _DefaultTimeoutSession(".cache", expire_after=3600)
 retry_session = retry(cache_session, retries=3, backoff_factor=0.3)
 openmeteo = openmeteo_requests.Client(session=retry_session)
 

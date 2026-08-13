@@ -63,3 +63,15 @@ data/*
 
 # Streamlit production secrets
 .streamlit/secrets.toml
+# --- Agent workspace files (never commit these) ---
+AGENTS.md
+SOUL.md
+IDENTITY.md
+USER.md
+TOOLS.md
+HEARTBEAT.md
+memory/
+media/
+skills/
+.clawhub/
+openclaw-workspace-state.json

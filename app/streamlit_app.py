@@ -34,6 +34,7 @@ friendly error instead of crashing — the same path a fresh Render
 deploy would hit before its first training run.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -50,7 +51,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.inference.predict import predict
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, log_event
 from app.components.location_picker import location_picker
 from app.components.forecast_cards import render_forecast_cards
 from app.components.charts import plot_trend, plot_forecast
@@ -145,7 +146,15 @@ try:
         lon,
         model_name or None,  # "" -> production model
     )
+    log_event(
+        logger, "forecast_loaded", city=city, lat=lat, lon=lon,
+        source=loc.get("source"), model=model_name or "production",
+    )
 except (SystemExit, RuntimeError, KeyError) as e:
+    log_event(
+        logger, "forecast_failed", city=city, lat=lat, lon=lon,
+        error=str(e), level=logging.ERROR,
+    )
     st.error(f"Could not load the forecast: {e}")
     st.info(
         "No production model found in the registry. Train and promote one "
