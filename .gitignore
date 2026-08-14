@@ -75,3 +75,4 @@ media/
 skills/
 .clawhub/
 openclaw-workspace-state.json
+.venv-test/

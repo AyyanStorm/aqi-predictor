@@ -6,8 +6,12 @@ The roadmap's location detection, in one component:
   Tier 1  Browser geolocation   — streamlit-js-eval calls the JS
                                   Geolocation API. Precise, but requires
                                   user permission and HTTPS.
-  Tier 2  IP-based              — ipapi.co (fallback: ipwho.is, ip-api.com)
-                                  when permission is denied.
+  Tier 2  IP-based              — ipapi.co (fallback: ipwho.is, ip-api.com),
+                                  resolved with the USER's IP (from request
+                                  headers or a browser-side fetch) — never the
+                                  server's datacenter IP (that was the bug where
+                                  every user got "Columbus, Ohio": Render's
+                                  US-East DC).
   Tier 3  Manual search         — text box → Open-Meteo Geocoding API.
                                   Always works; this is what a reviewer
                                   will actually use.
@@ -29,7 +33,7 @@ Day 17 default), so the widget never takes a capability away.
 """
 
 import streamlit as st
-from streamlit_js_eval import get_geolocation
+from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 from src.config import CITIES
 from src.utils.geo import geocode, locate_by_ip, resolve_timezone, reverse_geocode
@@ -38,6 +42,32 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 LOCATION_KEY = "location"
+
+# Client-side IP lookup, executed in the USER's browser. A server-side
+# lookup (locate_by_ip without an IP) resolves the RENDER SERVER's IP —
+# a US datacenter (Columbus, Ohio) — which is why every user saw the
+# same wrong location. Running the fetch in the browser resolves the
+# user's real IP. The component awaits promises, so an async IIFE works.
+_IP_BROWSER_JS = r"""
+(async () => {
+  const providers = ['https://ipapi.co/json/', 'https://ipwho.is/'];
+  for (const url of providers) {
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d && d.latitude !== undefined && d.longitude !== undefined) {
+        return {
+          city: d.city || null,
+          latitude: d.latitude,
+          longitude: d.longitude,
+          country_name: d.country_name || d.country || null,
+        };
+      }
+    } catch (e) { /* try next provider */ }
+  }
+  return null;
+})()
+"""
 
 
 def _label(result):
@@ -60,6 +90,34 @@ def _default_location():
             CITIES["Karachi"]["lat"], CITIES["Karachi"]["lon"], name="Karachi"
         ),
     }
+
+
+def _client_ip_from_headers():
+    """The user's real IP from request headers (Render sets
+    X-Forwarded-For on the proxied request). None when unavailable."""
+    try:
+        headers = st.context.headers
+        fwd = headers.get("X-Forwarded-For")
+        if fwd:
+            return fwd.split(",")[0].strip()
+        real = headers.get("X-Real-IP")
+        if real:
+            return real.strip()
+    except Exception as e:
+        logger.warning(f"Could not read client IP from headers: {e}")
+    return None
+
+
+def _locate_by_ip_browser():
+    """IP lookup executed in the user's browser (async component).
+
+    The first call mounts the component and returns None; the value is
+    delivered on a later rerun, so callers retry on the next run."""
+    try:
+        return streamlit_js_eval(js_expressions=_IP_BROWSER_JS, key="ip_browser")
+    except Exception as e:
+        logger.warning(f"Browser IP lookup failed: {e}")
+        return None
 
 
 def _apply_quick_pick():
@@ -112,7 +170,15 @@ def location_picker():
 
     # ---- Tier 1 (+ Tier 2 fallback): automatic detection ----
     if st.button("🎯 Use my location", use_container_width=True):
+        st.session_state["loc_detect"] = True
+        get_geolocation()          # mount GPS component (permission prompt)
+        st.rerun()
+
+    if st.session_state.get("loc_detect"):
+        attempts = st.session_state.get("loc_attempts", 0)
         with st.spinner("Detecting location…"):
+            # Tier 1: browser GPS — the component caches its async result,
+            # so once the user allows permission this returns coords.
             geo = get_geolocation()
             if geo and geo.get("coords"):
                 lat = geo["coords"]["latitude"]
@@ -128,9 +194,13 @@ def location_picker():
                     "timezone": resolve_timezone(lat, lon),
                 }
                 logger.info(f"Location set by browser geolocation: {name}")
+                st.session_state.pop("loc_detect", None)
             else:
-                # Permission denied / not HTTPS / unsupported → Tier 2.
-                ip = locate_by_ip()
+                # Tier 2: IP lookup using the USER's IP (from request
+                # headers), never the server's datacenter IP.
+                ip = locate_by_ip(client_ip=_client_ip_from_headers())
+                if not ip or not ip.get("latitude"):
+                    ip = _locate_by_ip_browser()   # async; retried below
                 if ip and ip.get("latitude"):
                     lat, lon = ip["latitude"], ip["longitude"]
                     name = (reverse_geocode(lat, lon)
@@ -142,11 +212,18 @@ def location_picker():
                         "timezone": resolve_timezone(lat, lon),
                     }
                     logger.info(f"Location set by IP: {name}")
-                else:
+                    st.session_state.pop("loc_detect", None)
+                elif attempts >= 2:
+                    st.session_state.pop("loc_detect", None)
                     st.warning(
                         "Couldn't detect your location automatically — "
                         "use the search box below."
                     )
+                else:
+                    # Browser-side IP fetch still resolving — try again.
+                    st.session_state["loc_attempts"] = attempts + 1
+                    st.rerun()
+        st.session_state.pop("loc_attempts", None)
         st.rerun()
 
     st.caption(

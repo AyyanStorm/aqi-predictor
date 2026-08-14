@@ -173,9 +173,18 @@ def reverse_geocode(lat, lon):
     return name
 
 
-def locate_by_ip():
+def locate_by_ip(client_ip=None):
     """
     IP-based location, trying each provider in order.
+
+    Parameters
+    ----------
+    client_ip : str | None
+        The user's real IP (from request headers). When provided, each
+        provider is queried for THAT IP instead of the caller's own.
+        This matters on Render: without it the lookup resolves the
+        SERVER's IP (a US datacenter — Columbus, Ohio) and every user
+        worldwide gets that same wrong location.
 
     Returns
     -------
@@ -185,6 +194,13 @@ def locate_by_ip():
     """
     for url in IP_API_URLS:
         try:
+            if client_ip:
+                if "ipapi.co" in url:
+                    url = f"https://ipapi.co/{client_ip}/json/"
+                elif "ipwho.is" in url:
+                    url = f"https://ipwho.is/{client_ip}"
+                else:  # ip-api.com
+                    url = f"http://ip-api.com/json/{client_ip}"
             resp = _geo_session.get(url, timeout=10)
             data = resp.json()
 
