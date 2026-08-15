@@ -59,30 +59,23 @@ BATCH_SLEEP_S = 0.35
 
 
 def _fetch_batch(lats, lons):
-    """One batched Open-Meteo GET (~500 locations), cached 1h.
+    """One batched Open-Meteo GET (~300 locations), cached 1h.
 
-    Handles the free tier's rate limiting: on HTTP 429 (Too Many
-    Requests) it waits for the minute window (60s) and retries once
-    before giving up, so a burst refresh doesn't silently lose data.
+    Rate-limit handling: on HTTP 429 we do NOT sleep 60s per batch —
+    when a whole IP is throttled that compounds into minutes of
+    spinner. We raise immediately; _fetch_many skips the batch and the
+    map renders with partial data (markers-first), so the page always
+    loads fast. The 30-min/6h caches + Refresh button backfill data as
+    the limit frees up.
     """
     params = {
         "latitude": ",".join(f"{x:.2f}" for x in lats),
         "longitude": ",".join(f"{x:.2f}" for x in lons),
         "current": "us_aqi,pm2_5,pm10",
     }
-    for attempt in range(2):
-        try:
-            resp = _map_session.get(AIR_QUALITY_URL, params=params, timeout=30)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            if getattr(e, "response", None) is not None and \
-                    e.response.status_code == 429 and attempt == 0:
-                logger.warning("Open-Meteo rate limit hit — waiting 60s "
-                               "then retrying batch")
-                time.sleep(60)
-                continue
-            raise
+    resp = _map_session.get(AIR_QUALITY_URL, params=params, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def _fetch_many(points):
@@ -90,10 +83,12 @@ def _fetch_many(points):
     Fetch current AQI for many (lat, lon) points in batches.
 
     points : list[(lat, lon)]
-    Returns list of dicts {lat, lon, aqi, pm2_5, pm10} (aqi None when the
-    model has no value for that point).
+    Returns (rows, failed_batches): rows is a list of dicts {lat, lon,
+    aqi, pm2_5, pm10} (aqi None when the model has no value for that
+    point); failed_batches counts rate-limited/errored batches so
+    callers can warn that the map may be partial.
     """
-    rows = []
+    rows, failed = [], 0
     for i in range(0, len(points), BATCH):
         chunk = points[i:i + BATCH]
         lats = [p[0] for p in chunk]
@@ -101,6 +96,7 @@ def _fetch_many(points):
         try:
             data = _fetch_batch(lats, lons)
         except Exception as e:
+            failed += 1
             logger.warning(f"map batch {i // BATCH} failed: {e}")
             continue
         for loc in data:
@@ -113,7 +109,7 @@ def _fetch_many(points):
                 "pm10": cur.get("pm10"),
             })
         time.sleep(BATCH_SLEEP_S)  # pace vs the minutely rate limit
-    return rows
+    return rows, failed
 
 
 def _grid_points():
@@ -139,9 +135,10 @@ def fetch_heat_grid():
     inside the free tier's 600/min burst limit on shared IPs.
     """
     points = _grid_points()
-    rows = _fetch_many(points)
+    rows, failed = _fetch_many(points)
     df = pd.DataFrame(rows).dropna(subset=["aqi"])
-    logger.info(f"heat grid: {len(points)} points -> {len(df)} with AQI")
+    logger.info(f"heat grid: {len(points)} points -> {len(df)} with AQI "
+                f"({failed} batches failed)")
     return df
 
 
@@ -165,7 +162,7 @@ def fetch_markers():
             meta.append({"name": c["name"], "lat": c["lat"], "lon": c["lon"],
                          "country": c["country"], "population": c["population"]})
 
-    rows = _fetch_many(points)
+    rows, failed = _fetch_many(points)
     out = []
     for m, r in zip(meta, rows):
         if r.get("aqi") is None:
@@ -173,7 +170,8 @@ def fetch_markers():
         out.append({**m, "aqi": r["aqi"], "pm2_5": r.get("pm2_5"),
                     "pm10": r.get("pm10")})
     df = pd.DataFrame(out)
-    logger.info(f"markers: {len(meta)} candidates -> {len(df)} with AQI")
+    logger.info(f"markers: {len(meta)} candidates -> {len(df)} with AQI "
+                f"({failed} batches failed)")
     return df
 
 
