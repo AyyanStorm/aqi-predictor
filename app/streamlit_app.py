@@ -258,9 +258,11 @@ else:
             """
         )
 
-    # --- Row 4: live 10-city leaderboard (worst air right now) ---
+    # --- Row 4: live Top-10 cities for the selected city's country ---
+    # Country comes from the live location (loc['country']) — the chart,
+    # heading and city pool all follow it. Never hardcoded.
     st.divider()
     try:
-        render_leaderboard()
+        render_leaderboard(loc.get("country"))
     except Exception as e:
-        st.warning(f"Leaderboard unavailable: {e}")
+        st.warning(f"Top-10 section unavailable: {e}")
