@@ -149,7 +149,7 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 }}
 
 /* ---------- Navbar ---------- */
-[data-testid="aqi-navbar"] {{
+.st-key-aqi-navbar {{
   position: sticky;
   top: 0;
   z-index: 999;
@@ -165,19 +165,19 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   -webkit-backdrop-filter: blur(18px);
   box-shadow: 0 10px 34px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
 }}
-[data-testid="aqi-navbar"] .brand {{
+.st-key-aqi-navbar .brand {{
   display: flex; align-items: center; gap: 0.55rem;
   font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em;
   white-space: nowrap;
 }}
-[data-testid="aqi-navbar"] .brand .logo {{
+.st-key-aqi-navbar .brand .logo {{
   width: 30px; height: 30px; border-radius: 10px;
   display: grid; place-items: center;
   background: linear-gradient(135deg, var(--purple), var(--cyan));
   font-size: 1rem;
   box-shadow: 0 4px 14px rgba(124, 58, 237, 0.45);
 }}
-[data-testid="aqi-navbar"] .chip {{
+.st-key-aqi-navbar .chip {{
   display: inline-flex; align-items: center; gap: 0.4rem;
   padding: 0.42rem 1rem;
   border-radius: {RADIUS['pill']};
@@ -187,7 +187,7 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   font-size: 0.9rem; font-weight: 500;
   white-space: nowrap;
 }}
-[data-testid="aqi-navbar"] .live-dot {{
+.st-key-aqi-navbar .live-dot {{
   width: 8px; height: 8px; border-radius: 50%;
   background: #34D399;
   box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
@@ -295,7 +295,7 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {{
-  [data-testid="aqi-navbar"] {{ flex-wrap: wrap; gap: 0.6rem; padding: 0.55rem 0.9rem; }}
+  .st-key-aqi-navbar {{ flex-wrap: wrap; gap: 0.6rem; padding: 0.55rem 0.9rem; }}
   .aqi-page-title {{ font-size: 1.55rem; }}
   .aqi-card .value {{ font-size: 2.1rem; }}
 }}
