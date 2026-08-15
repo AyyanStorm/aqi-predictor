@@ -29,11 +29,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.components.navbar import render_navbar
-from app.pages.analytics import render_analytics
-from app.pages.compare import render_compare
-from app.pages.dashboard import render_dashboard
-from app.pages.map import render_map
-from app.pages.tracking import render_tracking
+from app.views.analytics import render_analytics
+from app.views.compare import render_compare
+from app.views.dashboard import render_dashboard
+from app.views.map import render_map
+from app.views.tracking import render_tracking
 from app.theme import inject_theme
 
 st.set_page_config(
