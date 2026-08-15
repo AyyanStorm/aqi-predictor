@@ -44,8 +44,8 @@ SHADOW = "0 8px 32px rgba(0, 0, 0, 0.35)"
 # ------------------------------------------------------------------
 _CSS = f"""
 <style>
-/* ---------- Fonts (system-first, Inter when available) ---------- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* ---------- Fonts: Orbitron (display) + Inter (readable body) ---------- */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {{
   --bg: {COLORS['bg']};
@@ -60,6 +60,9 @@ _CSS = f"""
   --blue: {COLORS['blue']};
   --grid: {COLORS['grid']};
   --radius: {RADIUS['card']};
+  /* Orbitron = futuristic display layer · Inter = readable body layer */
+  --font-display: 'Orbitron', 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
 }}
 
 /* ---------- Aurora background ---------- */
@@ -78,11 +81,27 @@ _CSS = f"""
 }}
 
 /* ---------- Base text ---------- */
+/* Orbitron is the app's primary font; long-form paragraphs fall back
+   to Inter for readability (grill-me Q1). */
 html, body, [class*="css"], .stMarkdown, .stCaption {{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-display);
   color: var(--text);
 }}
-h1, h2, h3 {{ letter-spacing: -0.02em; }}
+.stMarkdown p, .stMarkdown li, .stAlert p, [data-testid="stExpander"] p {{
+  font-family: var(--font-body);
+}}
+
+/* Headings — Orbitron display layer, uppercase, tuned spacing */
+h1, h2, h3 {{
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}}
+h4, h5, h6 {{
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}}
 
 /* ---------- Glass surfaces ---------- */
 .glass {{
@@ -118,8 +137,12 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 [data-testid="stSidebar"] {{ background: rgba(5,7,13,0.85); backdrop-filter: blur(18px); }}
 [data-testid="stSidebarCollapseButton"] {{ color: var(--muted); }}
 
-/* ---------- Buttons as glass pills ---------- */
+/* ---------- Buttons as glass pills (Orbitron, uppercase) ---------- */
 .stButton > button, .stDownloadButton > button {{
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
   background: var(--glass);
   border: 1px solid var(--border);
   border-radius: {RADIUS['pill']};
@@ -167,7 +190,8 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 }}
 .st-key-aqi-navbar .brand {{
   display: flex; align-items: center; gap: 0.55rem;
-  font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em;
+  font-weight: 800; font-size: 1.0rem; letter-spacing: 0.1em;
+  text-transform: uppercase;
   white-space: nowrap;
 }}
 .st-key-aqi-navbar .brand .logo {{
@@ -199,7 +223,7 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   100% {{ box-shadow: 0 0 0 0 rgba(52,211,153,0); }}
 }}
 
-/* ---------- AQI cards ---------- */
+/* ---------- AQI cards (Orbitron values with subtle data glow) ---------- */
 .aqi-card {{
   background: var(--glass);
   border: 1px solid var(--border);
@@ -221,17 +245,37 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   opacity: 0.16;
   pointer-events: none;
 }}
-.aqi-card .kicker {{ font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }}
-.aqi-card .value {{ font-size: 2.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }}
-.aqi-card .band {{ font-size: 0.92rem; font-weight: 600; }}
+.aqi-card .kicker {{
+  font-family: var(--font-display);
+  font-size: 0.72rem; color: var(--muted); font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}}
+.aqi-card .value {{
+  font-family: var(--font-display);
+  font-size: 2.6rem; font-weight: 800; line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.5),
+               0 0 28px color-mix(in srgb, currentColor 35%, transparent);
+}}
+.aqi-card .band {{
+  font-family: var(--font-display);
+  font-size: 0.88rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase;
+}}
 .aqi-card .foot {{
   margin-top: 0.7rem; padding-top: 0.6rem;
   border-top: 1px solid rgba(255,255,255,0.10);
-  font-size: 0.8rem; color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em;
 }}
 
-/* ---------- Headers ---------- */
-.aqi-page-title {{ font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; margin: 0.2rem 0 0.1rem; }}
+/* ---------- Headers (Orbitron, uppercase display layer) ---------- */
+.aqi-page-title {{
+  font-family: var(--font-display);
+  font-size: 1.9rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0.2rem 0 0.1rem;
+}}
 .aqi-gradient-text {{
   background: linear-gradient(120deg, #C4B5FD 0%, #67E8F9 55%, #93C5FD 100%);
   -webkit-background-clip: text; background-clip: text;
@@ -250,8 +294,11 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   box-shadow: 0 24px 80px rgba(0,0,0,0.6);
 }}
 
-/* ---------- Inputs / selects ---------- */
+/* ---------- Inputs / selects (Orbitron) ---------- */
 [data-testid="stTextInput"] input, [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  font-size: 0.92rem;
   background: var(--glass);
   border: 1px solid var(--border);
   border-radius: {RADIUS['control']};
@@ -260,8 +307,12 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
 [data-testid="stTextInput"] input:focus, [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within {{
   border-color: var(--cyan);
 }}
+/* Dropdown option lists stay readable (natural case, body size) */
+[data-baseweb="popover"] li, [data-baseweb="menu"] li, [role="listbox"] li {{
+  font-family: var(--font-body);
+}}
 
-/* ---------- Alerts / insight cards (glass) ---------- */
+/* ---------- Alerts / insight cards (glass, body font for message) ---------- */
 [data-testid="stAlert"] {{
   background: var(--glass);
   border: 1px solid var(--border);
@@ -270,18 +321,24 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   -webkit-backdrop-filter: blur(12px);
   box-shadow: {SHADOW}, inset 0 1px 0 rgba(255,255,255,0.05);
 }}
+[data-testid="stAlert"] p {{ font-family: var(--font-body); }}
 
-/* ---------- Expander ---------- */
+/* ---------- Expander (title Orbitron, body readable) ---------- */
 [data-testid="stExpander"] details {{
   background: var(--glass);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   backdrop-filter: blur(12px);
 }}
+[data-testid="stExpander"] summary {{ font-family: var(--font-display); letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.9rem; }}
 
-/* ---------- Tabs / radio ---------- */
+/* ---------- Tabs / radio (Orbitron) ---------- */
 .stTabs [data-baseweb="tab-list"] {{ gap: 0.5rem; }}
 .stTabs [data-baseweb="tab"] {{
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+  text-transform: uppercase;
   background: var(--glass);
   border: 1px solid var(--border);
   border-radius: {RADIUS['pill']};
@@ -292,11 +349,17 @@ h1, h2, h3 {{ letter-spacing: -0.02em; }}
   background: linear-gradient(135deg, rgba(124,58,237,0.35), rgba(6,182,212,0.25));
   color: #fff;
 }}
+/* Tooltips — Orbitron, small but readable */
+[data-testid="stTooltipContent"], [role="tooltip"] {{
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  font-size: 0.8rem;
+}}
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {{
   .st-key-aqi-navbar {{ flex-wrap: wrap; gap: 0.6rem; padding: 0.55rem 0.9rem; }}
-  .aqi-page-title {{ font-size: 1.55rem; }}
+  .aqi-page-title {{ font-size: 1.35rem; letter-spacing: 0.05em; }}
   .aqi-card .value {{ font-size: 2.1rem; }}
 }}
 @media (max-width: 600px) {{
@@ -366,20 +429,32 @@ def glass_theme(fig: go.Figure) -> go.Figure:
     Apply the glass design system to a Plotly figure (mutates + returns).
 
     Sets transparent paper so the glass panel behind shows through, the
-    dark grid, and the Inter font. Per-chart layout (margins, legends,
-    titles) is left untouched — call this AFTER the chart's own layout.
+    dark grid, and the Orbitron display font (Inter fallback for the
+    small tick labels where Orbitron would hurt readability).
+    Per-chart layout (margins, legends, titles) is left untouched — call
+    this AFTER the chart's own layout.
     """
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, -apple-system, sans-serif", color=COLORS["text"], size=12),
+        font=dict(
+            family="Orbitron, Inter, -apple-system, sans-serif",
+            color=COLORS["text"],
+            size=12,
+        ),
         hoverlabel=dict(
             bgcolor="#16203A",
             bordercolor=COLORS["border_strong"],
-            font=dict(color="#FFFFFF", family="Inter, sans-serif"),
+            font=dict(color="#FFFFFF", family="Orbitron, Inter, sans-serif"),
         ),
         xaxis=dict(gridcolor=COLORS["grid"], zerolinecolor=COLORS["grid"]),
         yaxis=dict(gridcolor=COLORS["grid"], zerolinecolor=COLORS["grid"]),
     )
+    # Small tick labels: keep Orbitron but never smaller than 10px;
+    # Plotly falls back gracefully when the font can't render a glyph.
+    for axis in (fig.layout.xaxis, fig.layout.yaxis):
+        axis.tickfont = dict(
+            family="Orbitron, Inter, sans-serif", color=COLORS["text_muted"], size=11
+        )
     return fig
