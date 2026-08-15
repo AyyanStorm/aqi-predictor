@@ -96,7 +96,7 @@ def render_navbar(pages, active_title):
 
     with st.container(key="aqi-navbar"):
         cols = st.columns(
-            [1.7, 1, 1, 1, 1, 2.1, 1.9, 1.15, 1.15], gap="small"
+            [1.6, 1, 1, 1, 1, 1, 1.9, 1.9, 1.15, 1.15], gap="small"
         )
         with cols[0]:
             st.markdown(
@@ -104,7 +104,7 @@ def render_navbar(pages, active_title):
                 '<span>AQI Predictor</span></div>',
                 unsafe_allow_html=True,
             )
-        for i, title in enumerate(("Dashboard", "Compare", "Tracking", "Analytics")):
+        for i, title in enumerate(("Dashboard", "Map", "Compare", "Tracking", "Analytics")):
             with cols[1 + i]:
                 if st.button(
                     title,

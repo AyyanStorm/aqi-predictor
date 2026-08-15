@@ -18,6 +18,7 @@ uvicorn
 plotly
 streamlit-js-eval  # browser geolocation
 shap  # Day 20 explainability
+pydeck  # Global AQI Map (deck.gl renderer for st.pydeck_chart)
 # NOTE: hopsworks is deliberately NOT here — it pins protobuf<5.0.0 and
 # pandas<2.4.0, which conflict with keras (protobuf>=5.26.1) and pandas 3.x.
 # It lives in requirements-feature-store.txt, installed in a SEPARATE venv

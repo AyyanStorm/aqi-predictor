@@ -32,6 +32,7 @@ from app.components.navbar import render_navbar
 from app.pages.analytics import render_analytics
 from app.pages.compare import render_compare
 from app.pages.dashboard import render_dashboard
+from app.pages.map import render_map
 from app.pages.tracking import render_tracking
 from app.theme import inject_theme
 
@@ -49,6 +50,7 @@ inject_theme()
 pages = {
     "Dashboard": st.Page(render_dashboard, title="Dashboard",
                          url_path="dashboard", default=True),
+    "Map": st.Page(render_map, title="Map", url_path="map"),
     "Compare": st.Page(render_compare, title="Compare", url_path="compare"),
     "Tracking": st.Page(render_tracking, title="Tracking",
                         url_path="tracking"),
