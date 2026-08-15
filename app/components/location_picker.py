@@ -18,25 +18,29 @@ The roadmap's location detection, in one component:
 
 Everything resolves to a location dict that lives in st.session_state:
 
-    {"name": "Karachi", "lat": 24.8608, "lon": 67.0104,
-     "source": "browser", "country": "Pakistan"}
+    {"name": "Tokyo", "lat": 35.6895, "lon": 139.6917,
+     "source": "search", "country": "Japan"}
 
     source ∈ {"browser", "ip", "search", "quick-pick"} — shown in the UI
     so it's obvious WHICH tier won, and lets us debug silently.
     country is the display country of the resolved location (e.g.
-    "Pakistan", "United Arab Emirates") — the dashboard heading uses it
-    so the title stays in sync with the selected city. It may be None
-    when a source can't determine it (rare coordinate fallbacks).
+    "Japan", "United Arab Emirates") — the dashboard heading and the
+    quick-pick picker use it, so the UI stays in sync with the selected
+    city. It may be None when a source can't determine it (rare
+    coordinate fallbacks).
 
-The 10 training cities stay available as a quick-pick dropdown (the
-Day 17 default), so the widget never takes a capability away.
+The quick-pick dropdown is fully dynamic: it lists OTHER cities from
+the selected city's country (top 15 by population from the global
+simplemaps dataset), with the label "Or pick any other city from
+{Country}". No country is hardcoded anywhere.
 """
 
 import streamlit as st
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 from src.config import CITIES
-from src.utils.geo import geocode, locate_by_ip, resolve_timezone, reverse_geocode
+from src.utils.country_cities import cities_for_country, country_of_city, other_cities
+from src.utils.geo import geocode, locate_by_ip, resolve_timezone, reverse_geocode, short_country
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,12 +81,15 @@ def _label(result):
 
 
 def _default_location():
+    # Country derived from the dataset (never hardcoded): the default
+    # Karachi location resolves its country via the global city data.
+    country = country_of_city("Karachi")
     return {
         "name": "Karachi",
         "lat": CITIES["Karachi"]["lat"],
         "lon": CITIES["Karachi"]["lon"],
         "source": "quick-pick",
-        "country": "Pakistan",
+        "country": country,
         # IANA timezone, resolved dynamically (never hardcoded) — the
         # quick-pick cities never hit geocoding, so we resolve by
         # lat/lon via Open-Meteo (timezone=auto), cached 1h.
@@ -121,16 +128,28 @@ def _locate_by_ip_browser():
 
 
 def _apply_quick_pick():
-    """on_change callback: quick-pick dropdown changed."""
+    """on_change callback: dynamic country picker changed.
+
+    The picker only ever lists cities of the CURRENT location's country
+    (built by other_cities()), so the picked city's country comes from
+    the dataset — never hardcoded."""
     city = st.session_state["geo_quick"]
-    lat, lon = CITIES[city]["lat"], CITIES[city]["lon"]
+    loc = st.session_state[LOCATION_KEY]
+    country = loc.get("country")
+    match = next(
+        (c for c in cities_for_country(country, limit=15) if c["name"] == city),
+        None,
+    )
+    if match is None:
+        logger.warning(f"Quick-pick city {city!r} not found in dataset")
+        return
     st.session_state[LOCATION_KEY] = {
         "name": city,
-        "lat": lat,
-        "lon": lon,
+        "lat": match["lat"],
+        "lon": match["lon"],
         "source": "quick-pick",
-        "country": "Pakistan",  # the 10 training cities are all Pakistani
-        "timezone": resolve_timezone(lat, lon, name=city),
+        "country": match["country"],  # dataset country, dynamic
+        "timezone": resolve_timezone(match["lat"], match["lon"], name=city),
     }
 
 
@@ -259,16 +278,30 @@ def location_picker():
         else:
             st.caption("No matches — try another spelling.")
 
-    # ---- Quick pick: the 10 training cities (Day 17 default) ----
-    city_names = list(CITIES)
-    default_idx = city_names.index(loc["name"]) if loc["name"] in city_names else 0
-    st.selectbox(
-        "Or pick a Pakistan city",
-        city_names,
-        index=default_idx,
-        key="geo_quick",
-        on_change=_apply_quick_pick,
-    )
+    # ---- Quick pick: other cities in the selected city's country ----
+    # Fully dynamic (grill-me decisions): label + options follow
+    # loc["country"] — top 15 by population from the global dataset,
+    # excluding the currently selected city. When the country is
+    # unknown, the dropdown is hidden and a caption explains why.
+    country = loc.get("country")
+    if not country:
+        st.caption("Country not detected — search a city to see more options.")
+    else:
+        label = f"Or pick any other city from {short_country(country) or country}"
+        options = other_cities(country, exclude_name=loc["name"], limit=15)
+        if not options:
+            st.caption("No additional cities available for this country.")
+        else:
+            # index=None + placeholder: guarantees a CHANGE event fires
+            # _apply_quick_pick (same pattern as the search Matches box).
+            st.selectbox(
+                label,
+                [c["name"] for c in options],
+                index=None,
+                placeholder="Pick a city…",
+                key="geo_quick",
+                on_change=_apply_quick_pick,
+            )
 
     st.caption(f"Active: **{loc['name']}** · source: `{loc['source']}`")
     return st.session_state[LOCATION_KEY]

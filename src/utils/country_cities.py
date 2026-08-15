@@ -149,3 +149,68 @@ def cities_for_country(country, limit=15):
     if canonical is None:
         return []
     return _by_country().get(canonical, [])[:limit]
+
+
+def other_cities(country, exclude_name=None, limit=15):
+    """
+    Largest cities for a country, minus the currently selected city.
+
+    Powers the dynamic "Or pick any other city from {Country}" picker:
+    the selection is excluded so the list never offers the city the
+    user is already looking at. Matching is on the first comma-part of
+    the picker's display name ("London, England, United Kingdom" ->
+    "London"), so search labels and dataset names line up.
+
+    Parameters
+    ----------
+    country : str | None
+        Country of the current selection (picker country).
+    exclude_name : str | None
+        Current city display name to exclude (None = no exclusion).
+    limit : int
+        Max options to return.
+
+    Returns
+    -------
+    list of dict
+        [{name, lat, lon, country, population}, ...] — may be shorter
+        than `limit` when the country has few cities or the current
+        city is the only one; empty when nothing is left to offer.
+    """
+    cities = cities_for_country(country, limit=limit + 1)
+    if exclude_name:
+        base = _name_key(exclude_name)
+        cities = [c for c in cities if _name_key(c["name"]) != base]
+    return cities[:limit]
+
+
+def _name_key(name):
+    """Normalised comparison key for a city name.
+
+    Lowercases, keeps only the first comma-part (search labels are
+    "City, Region, Country") and folds typographic apostrophes to
+    straight ones (dataset: "Saint John’s" vs typed "Saint John's").
+    """
+    base = str(name).split(",")[0].strip().lower()
+    return base.replace("’", "'").replace("‘", "'")
+
+
+def country_of_city(name):
+    """
+    Country for a city name (most populous match), or None if unknown.
+
+    Reverse lookup used where a country must be derived from a city
+    WITHOUT a geocoding call (e.g. the default Karachi location):
+    returns the country of the highest-population dataset entry with
+    that name ("London" -> "United Kingdom", not the Canadian one).
+    """
+    if not name:
+        return None
+    base = str(name).split(",")[0].strip().lower()
+    if not base:
+        return None
+    best, best_pop = None, -1
+    for c in _load():
+        if c["name"].lower() == base and c["population"] > best_pop:
+            best, best_pop = c["country"], c["population"]
+    return best

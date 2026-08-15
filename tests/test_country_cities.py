@@ -4,7 +4,9 @@ import pytest
 
 from src.utils.country_cities import (
     cities_for_country,
+    country_of_city,
     normalize_country,
+    other_cities,
 )
 
 
@@ -93,3 +95,55 @@ def test_dataset_rows_have_required_fields():
             assert isinstance(c["lat"], float)
             assert isinstance(c["lon"], float)
             assert isinstance(c["population"], int)
+
+
+# ---------------------------------------------------------------
+# other_cities() — dynamic quick-pick options (exclude current city)
+# ---------------------------------------------------------------
+def test_other_cities_excludes_current_city():
+    opts = other_cities("United States", exclude_name="New York", limit=15)
+    names = [c["name"] for c in opts]
+    assert "New York" not in names
+    assert "Los Angeles" in names
+    assert len(opts) == 15
+
+
+def test_other_cities_search_label_matching():
+    # Search labels are "City, Region, Country" — must still exclude.
+    opts = other_cities("United Kingdom",
+                        exclude_name="London, England, United Kingdom", limit=15)
+    names = [c["name"] for c in opts]
+    assert "London" not in names
+    assert "Birmingham" in names
+
+
+def test_other_cities_single_city_country():
+    # Only city in the dataset -> nothing else to offer.
+    assert other_cities("Antigua and Barbuda",
+                        exclude_name="Saint John's") == []
+    # No exclusion -> the one city is returned (dataset's canonical
+    # name uses a typographic apostrophe).
+    opts = other_cities("Antigua and Barbuda", limit=15)
+    assert [c["name"] for c in opts] == ["Saint John’s"]
+
+
+def test_other_cities_unknown_country():
+    assert other_cities("Atlantis", exclude_name="X") == []
+    assert other_cities(None, exclude_name="X") == []
+
+
+# ---------------------------------------------------------------
+# country_of_city() — reverse lookup for the default location
+# ---------------------------------------------------------------
+def test_country_of_city():
+    assert country_of_city("Karachi") == "Pakistan"
+    assert country_of_city("New York") == "United States"
+    assert country_of_city("London, England, United Kingdom") == "United Kingdom"
+    assert country_of_city("Dubai") == "United Arab Emirates"
+    assert country_of_city("Tokyo") == "Japan"
+
+
+def test_country_of_city_unknown_and_empty():
+    assert country_of_city("Atlantis") is None
+    assert country_of_city("") is None
+    assert country_of_city(None) is None
