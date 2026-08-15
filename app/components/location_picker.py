@@ -172,9 +172,21 @@ def _apply_search_match():
     logger.info(f"Location set by search: {_label(r)}")
 
 
-def location_picker():
+def default_location():
+    """Public accessor for the first-load default location (Karachi)."""
+    return _default_location()
+
+
+def location_picker(in_dialog=False):
     """
     Render the three-tier location widget; return the active location.
+
+    Parameters
+    ----------
+    in_dialog : bool
+        True when rendered inside the glass location dialog (navbar):
+        the "📍 Location" subheader is skipped because the dialog
+        already has a title.
 
     Returns
     -------
@@ -185,7 +197,8 @@ def location_picker():
     st.session_state.setdefault(LOCATION_KEY, _default_location())
     loc = st.session_state[LOCATION_KEY]
 
-    st.subheader("📍 Location")
+    if not in_dialog:
+        st.subheader("📍 Location")
 
     # ---- Tier 1 (+ Tier 2 fallback): automatic detection ----
     if st.button("🎯 Use my location", use_container_width=True):

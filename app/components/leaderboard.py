@@ -156,6 +156,8 @@ def render_leaderboard(country):
         xaxis_title=None,
         showlegend=False,
     )
+    from app.theme import glass_theme
+    glass_theme(chart)
     st.plotly_chart(chart, use_container_width=True,
                     config={"displayModeBar": False})
 

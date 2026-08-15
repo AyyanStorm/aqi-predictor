@@ -96,6 +96,8 @@ def _contributor_chart(explanation, horizon):
         yaxis_title=None,
         showlegend=False,
     )
+    from app.theme import glass_theme
+    glass_theme(fig)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 

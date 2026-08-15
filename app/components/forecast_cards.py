@@ -28,42 +28,12 @@ from src.utils.aqi_utils import (
     is_hazardous,
 )
 from src.utils.local_time import format_local_dt, horizon_times, tz_display_name
+from app.theme import glass_card
 
 
 def _card_html(title, aqi, subtitle, accent, time_str=None):
-    """One forecast card as inline-styled HTML (Streamlit-safe subset).
-
-    time_str, when given, is rendered as a muted footer under the band
-    label — the local date/time for this exact prediction period.
-    """
-    time_footer = ""
-    if time_str:
-        time_footer = f"""
-      <div style="
-        margin-top: 10px;
-        padding-top: 8px;
-        border-top: 1px solid rgba(255,255,255,0.12);
-        font-size: 0.8rem;
-        color: #9aa4b2;">
-        🕐 {time_str}
-      </div>"""
-    return f"""
-    <div style="
-        border: 2px solid {accent};
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 8px;
-        background: #0e1117;">
-      <div style="font-size: 0.85rem; color: #aaa;">{title}</div>
-      <div style="font-size: 2.4rem; font-weight: 700; color: {accent};">
-        {aqi}
-      </div>
-      <div style="font-size: 0.9rem; color: {accent}; font-weight: 600;">
-        {subtitle}
-      </div>
-      {time_footer}
-    </div>
-    """
+    """One forecast card as a premium glass card (app/theme.py CSS)."""
+    return glass_card(title, aqi, subtitle, accent, time_str=time_str)
 
 
 @st.fragment(run_every=30)

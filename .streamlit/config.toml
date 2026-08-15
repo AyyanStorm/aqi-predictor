@@ -1,0 +1,12 @@
+# Streamlit native theme — dark base so every built-in widget matches
+# the glassmorphism design system (custom glass CSS lives in app/theme.py).
+[theme]
+base = "dark"
+primaryColor = "#7C3AED"
+backgroundColor = "#05070D"
+secondaryBackgroundColor = "#0B101C"
+textColor = "#EEF2FA"
+font = "sans serif"
+
+[server]
+headless = true

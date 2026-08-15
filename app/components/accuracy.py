@@ -217,25 +217,14 @@ def _prediction_chart(record, actuals_df, tz_name, city):
         yaxis=dict(title="AQI (US EPA)", gridcolor="#262b36"),
         hovermode="x unified",
     )
-    return fig
+    from app.theme import glass_theme
+    return glass_theme(fig)
 
 
 def _metric_card(title, value, subtitle, accent):
-    """Metric card matching the existing forecast-card language."""
-    return f"""
-    <div style="
-        border: 2px solid {accent};
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 8px;
-        background: #0e1117;">
-      <div style="font-size: 0.85rem; color: #aaa;">{title}</div>
-      <div style="font-size: 2.2rem; font-weight: 700; color: {accent};">
-        {value}
-      </div>
-      <div style="font-size: 0.8rem; color: #9aa4b2;">{subtitle}</div>
-    </div>
-    """
+    """Metric card matching the glass forecast-card language (theme.py)."""
+    from app.theme import glass_card
+    return glass_card(title, value, subtitle, accent)
 
 
 def _render_summary_cards(summary, per_city=False):
@@ -327,7 +316,7 @@ def render_accuracy(user_id, loc):
             else:
                 st.caption(
                     "🎯 Tracking your own city? Use **'Use my location'** in "
-                    "the sidebar — it's tracked automatically, no extra setup."
+                    "the navbar — it's tracked automatically, no extra setup."
                 )
 
     # ---- Your Average Accuracy (global, across all tracked cities) ----

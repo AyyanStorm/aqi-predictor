@@ -125,7 +125,8 @@ def plot_trend(lat, lon, city, result):
         hovermode="x unified",
     )
     fig.update_yaxes(range=[0, y_max])
-    return fig
+    from app.theme import glass_theme
+    return glass_theme(fig)
 
 
 def plot_forecast(result):
@@ -159,4 +160,5 @@ def plot_forecast(result):
         shapes=_band_rects(y_max),
     )
     fig.update_yaxes(range=[0, y_max])
-    return fig
+    from app.theme import glass_theme
+    return glass_theme(fig)

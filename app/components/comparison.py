@@ -204,7 +204,8 @@ def _comparison_chart(city_data, failures):
             xref="paper", yref="paper", x=0, y=1.12,
             showarrow=False, font=dict(size=11, color="#ffb74d"),
         )
-    return fig
+    from app.theme import glass_theme
+    return glass_theme(fig)
 
 
 # ---------------------------------------------------------------
