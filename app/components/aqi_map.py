@@ -273,19 +273,20 @@ def render_aqi_map():
     # ---- Data (cached: heat grid 6h, markers 30 min) — fetch markers
     # first and render them even if the heat layer is partial, so a
     # rate-limited grid never hides the interactive map. ----
-    try:
-        markers_df = fetch_markers()
-    except Exception as e:
-        logger.error(f"map marker fetch failed: {e}")
-        st.error("Could not fetch global AQI data right now. "
-                 "Please try again in a minute.")
-        return
+    with st.spinner("Fetching live global AQI…"):
+        try:
+            markers_df = fetch_markers()
+        except Exception as e:
+            logger.error(f"map marker fetch failed: {e}")
+            st.error("Could not fetch global AQI data right now. "
+                     "Please try again in a minute.")
+            return
 
-    grid_df = None
-    try:
-        grid_df = fetch_heat_grid()
-    except Exception as e:
-        logger.warning(f"heat grid unavailable (markers still shown): {e}")
+        grid_df = None
+        try:
+            grid_df = fetch_heat_grid()
+        except Exception as e:
+            logger.warning(f"heat grid unavailable (markers still shown): {e}")
 
     # ---- Controls row: refresh + updated-at ----
     c_refresh, c_updated = st.columns([1, 4])
