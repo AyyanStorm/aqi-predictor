@@ -129,9 +129,15 @@ def _grid_points():
     return pts
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
 def fetch_heat_grid():
-    """Current AQI on the global grid (cached 30 min). DataFrame."""
+    """Current AQI on the global grid (cached 6h).
+
+    The CAMS global model only updates every 12h (verified in the
+    Open-Meteo docs), so a 6h TTL costs zero freshness while cutting
+    the heat-grid's share of a refresh from 18 calls to ~2/day — well
+    inside the free tier's 600/min burst limit on shared IPs.
+    """
     points = _grid_points()
     rows = _fetch_many(points)
     df = pd.DataFrame(rows).dropna(subset=["aqi"])
