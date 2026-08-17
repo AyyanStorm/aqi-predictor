@@ -1,10 +1,10 @@
-# AQI Predictor — 28-Day Delivery Roadmap
+# AQI Predictor — 33-Day Delivery Roadmap (extended for Final QA & Validation)
 
 **Owner:** Ayyan Amir · **Program:** 10Pearls Internship
-**Day 1:** 27 Jul 2026 · **Day 28:** 23 Aug 2026
+**Day 1:** 27 Jul 2026 · **Day 33:** 23 Aug 2026
 **Repo:** https://github.com/AyyanStorm/aqi-predictor
-**Budget:** ~2h 15m/day (evenings, 8–11pm PKT), 28 consecutive days
-**Mentor syncs:** every Friday. Demo required at **Day 19 (14 Aug)** and **Day 26 (21 Aug)** — treat both as hard deadlines.
+**Budget:** ~2h 15m/day (evenings, 8–11pm PKT), 33 days total (28 planned + 5-day QA/validation extension)
+**Mentor syncs:** every Friday. Demo required at **Day 19 (14 Aug)** and **Day 31 (21 Aug)** — treat both as hard deadlines. The Day 31 demo is reached **only after** the Day 26–30 Final QA & Validation phase completes.
 **Submission:** GitHub link to the 10Pearls Shine portal. Deliverables = working repo + documentation + project report. No video required.
 
 ---
@@ -347,24 +347,82 @@ Legend: **NEW** = files/folders you create that day · **Commit** = the git comm
 | 23 | Tue 18 Aug | Deploy to Render via `render.yaml` blueprint; secrets as Render env vars; model artifact fetched from Hopsworks at boot (free instances have no persistent disk); debug the inevitable breakage | `render.yaml` | `chore: production deployment configuration` | ✅ done (dashboard live + API smoke-tested) |
 | 24 | Wed 19 Aug | Robustness: retries, timeouts, graceful degradation, structured logs, failure notifications | — | `feat: production error handling and observability` | ✅ done |
 
-### Phase 5 — Proof & Polish (Days 25–28)
+### Phase 5 — Proof & Polish (Day 25)
 
 | Day | Date | Theme | NEW | Commit | Status |
 |---|---|---|---|---|---|
-| 25 | Thu 20 Aug | pytest: unit tests for features, AQI utils, inference; CI workflow | `tests/*`, `.github/workflows/ci.yml` | `test: unit test suite and CI` | ✅ done |
-| 26 | Fri 21 Aug | README with architecture diagram, screenshots, setup instructions, results table | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` | ⬜ |
-| 27 | Sat 22 Aug | Project report: problem, approach, experiments, results, limitations, future work | `docs/PROJECT_REPORT.md` | `docs: final project report` | ⬜ |
-| 28 | Sun 23 Aug | Full review, README screenshots, verify every scheduled run is green, tag and submit to Shine portal | — | `chore: v1.0.0 final submission` | ⬜ |
+| 25 | Thu 20 Aug* | pytest: unit tests for features, AQI utils, inference; CI workflow | `tests/*`, `.github/workflows/ci.yml` | `test: unit test suite and CI` | ✅ done |
+
+*Days 21–25 completed ahead of schedule (commits landed 10–15 Aug), freeing the 16–20 Aug calendar slots for Phase 6. Original rows keep their planned dates as a historical record; Phase 6 rows carry the actual working dates.*
+
+### Phase 6 — Final QA & Validation (Days 26–30) — **MANDATORY before the Day 26 milestone**
+
+This phase is non-negotiable: QA testing, data validation, model accuracy verification, model retraining, performance optimization, benchmarking, and regression testing must ALL complete before the project reaches the Day 31 demo milestone. Priority order (locked): **P0 → correctness/data → model accuracy → performance → regression → deployment → polish.** No low-value visual polish while model accuracy or system reliability is unresolved.
+
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 26 | Sun 16 Aug | Data & System Audit: full 4-yr backfill v2, data-quality audit, incumbent-model audit, Render before-benchmark | `scripts/audit/data_audit.py`, `scripts/audit/model_audit.py`, `scripts/benchmark/before_benchmark.py` | `audit: 4yr backfill + data/model/before-benchmark baselines` | ✅ done |
+| 27 | Mon 17 Aug | Full QA Testing: functional + edge-case + regression across the whole system | `tests/test_api.py`, `tests/test_app_smoke.py`, `docs/QA_TEST_PLAN.md`, `docs/MANUAL_QA_CHECKLIST.md` | `test: full QA suite and manual checklist pass` | 🔄 |
+| 28 | Tue 18 Aug | Model Accuracy Audit & Retraining: clean holdout eval, horizon metrics, Sialkot, gates verdict | `scripts/audit/model_select.py`, `scripts/audit/final_candidate_eval.py` | `audit: candidate lgbm_v10 gates + Sialkot verdict` | 🔄 |
+| 29 | Wed 19 Aug | Staged Render deploy (freeze → Stage 1 API → Stage 2 dashboard + promote v10) + performance profiling & optimization | `scripts/benchmark/after_benchmark.py` | `perf: staged deploy v10 + bottleneck fixes` | ⬜ |
+| 30 | Thu 20 Aug | Final regression re-run, after-benchmark, before/after table, Final Model Health Report | `docs/FINAL_MODEL_HEALTH_REPORT.md` | `docs: final model health report + after-benchmark` | ⬜ |
+
+**Day-by-day detail (each day: objective · tasks · expected output · dependencies · completion criteria):**
+
+**Day 26 · Sun 16 Aug — Data & System Audit** (✅ completed)
+- Objective: baseline everything before touching model or code — data, incumbent model, and live performance.
+- Tasks: 4-year serial backfill v2 (10 cities, 2022-08-06 → 2026-08-15, 1 worker); data quality audit (missing values, duplicates, timestamp/UTC integrity, cadence gaps, city/country mapping, invalid AQI, outliers, feature units, target construction, feature/target alignment, leakage); model audit of incumbent v6 on the 60-day holdout + Sialkot; before-benchmark on live Render (median + P95).
+- Expected output: `logs/backfill_4yr.log`, `logs/data_audit.json` (PASS w/ caveats), `logs/model_audit_before.json`, `logs/before_benchmark.json` (all warm targets already met: /health 0.33s, /cities 0.24s, /predict 0.70s).
+- Dependencies: Days 21–25 (completed early).
+- Completion criteria: store = 352,320 rows (10 cities × 35,232); audit PASS with documented caveats (boundary_layer_height 2024-H1 API gap; real AQI>500 Lahore events; Quetta altitude pressure).
+
+**Day 27 · Mon 17 Aug — Full QA Testing**
+- Objective: prove the whole system works end-to-end and survives failure modes — before any model or performance change.
+- Tasks: automated pytest: app startup, all 5 views (Dashboard/Map/Compare/Tracking/Analytics), city search, city selection, dynamic country detection, country-specific city picker, geolocation, timezone, current local time, +24h/+48h/+72h times, current AQI, AQI prediction, forecast cards, charts, historical data, multi-city comparison, top-10 cities, global AQI map, navigation, refresh, API failures, missing data, invalid inputs, loading/empty/error states, mobile/responsive smoke; manual checklist per `docs/MANUAL_QA_CHECKLIST.md`; P0/P1 fix pass.
+- Expected output: full suite green, checklist ticked, `docs/QA_TEST_PLAN.md` updated with results.
+- Dependencies: Day 26.
+- Completion criteria: zero open P0/P1 issues; every item in the QA test plan verified (automated ✅ or manual 👁).
+
+**Day 28 · Tue 18 Aug — Model Accuracy Audit & Retraining finalize**
+- Objective: honest verdict on model quality on genuinely unseen data — no overlap-inflated claims.
+- Tasks: per-horizon evaluation (+24h/+48h/+72h) reporting MAE, RMSE, R², MAPE, per-city + overall; predicted-vs-actual analysis; final candidate **lgbm_v10** (trained strictly before the 60-day holdout) evaluated on the clean temporal holdout + Sialkot generalization; pre-declared gates: beat persistence ✅ (17.6 vs 22.4), beat seasonal-naive ✅ (17.6 vs 32.0), beat v6 = **satisfied by disqualification** (v6 trained Apr–Aug 2026, memorized ~54/60 holdout days — documented, not a fair baseline; v10 wins/ties Sialkot: MAE 13.6/17.8/18.6 vs 13.6/18.2/19.2); reporting-only MAE targets: +24h ≤20 ✅ (12.5), +48h ≤25 ✅ (16.0), +72h ≤30 ✅ (16.5).
+- Expected output: `logs/model_select.json`, `logs/model_audit_after.json`, gates verdict = **PROMOTE v10** (registered as candidate, not yet production).
+- Dependencies: Day 26 (data + holdout prep).
+- Completion criteria: verdict documented with evidence; candidate registered; nothing promoted until the Day 29 staged deploy.
+
+**Day 29 · Wed 19 Aug — Staged Deploy + Performance (Option A: verify, don't chase imaginary wins)**
+- Objective: put the validated candidate + low-risk fixes live in controlled stages; profile and fix only genuine bottlenecks.
+- Tasks: **Deployment policy (locked):** freeze live Render during audit (already frozen) → **Stage 1:** API changes + low-risk fixes (incl. `normalize_country('PK')`) → verify `/health`, `/cities`, `/predict` → **Stage 2:** dashboard changes + **promote lgbm_v10** → full application verification. **Performance:** profile dashboard first render, prediction response, city search, map loading, `/predict`, `/cities`, `/health`, model loading, feature processing, chart rendering, Streamlit reruns, cache behavior — Render is the source of truth, localhost only for isolating bottlenecks; fix only real bottlenecks (candidate: map rate-limit strategy). Cold start (16.4s) measured separately, excluded from gates.
+- Expected output: live app serving v10; `logs/after_benchmark.json` (draft); targets table embedded: dashboard <3s · prediction <1.5s · city search <1s · map <4s · /predict <1.5s · /cities <1s · /health <500ms (median + P95, multi-run; no improvement claims without measurements).
+- Dependencies: Days 27–28.
+- Completion criteria: both stages verified on the live URL; v10 promoted; before/after measurements recorded on the SAME deployed code.
+
+**Day 30 · Thu 20 Aug — Regression + After-Benchmark + Final Model Health Report**
+- Objective: prove optimization/retraining broke nothing, publish before/after numbers, and deliver the final verdict report before the demo.
+- Tasks: full regression re-run (prediction functionality, city selection, country detection, timezone, forecasts, charts, map, top-10, multi-city comparison, APIs, mobile UI, error handling); after-benchmark on the same deployed code; before/after table (`Before: X → After: Y → Improvement: Z%`); **Final Model Health Report** containing: Data Health (missing data, leakage, timestamps, features), Model Health (current vs candidate, MAE/RMSE/R²/MAPE, +24/48/72h, per-city, Sialkot), Performance (before/after, median, P95, bottlenecks, improvements), and the **final decision: KEEP CURRENT MODEL or PROMOTE RETRAINED MODEL** with evidence.
+- Expected output: `docs/FINAL_MODEL_HEALTH_REPORT.md`, final `logs/after_benchmark.json`.
+- Dependencies: Day 29.
+- Completion criteria: suite green after all changes; before/after published; final decision documented (PROMOTE lgbm_v10 with the Gate-3-disqualification evidence).
+
+### Phase 7 — Demo & Submission (Days 31–33)
+
+| Day | Date | Theme | NEW | Commit | Status |
+|---|---|---|---|---|---|
+| 31 | Fri 21 Aug | **Mentor demo (hard deadline).** README with architecture diagram, screenshots, setup instructions, results table — reached ONLY after Phase 6 completes | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` | ⬜ |
+| 32 | Sat 22 Aug | Project report: problem, approach, experiments, results, limitations, future work — folds in the Final Model Health Report numbers | `docs/PROJECT_REPORT.md` | `docs: final project report` | ⬜ |
+| 33 | Sun 23 Aug | Full review, README screenshots, verify every scheduled run is green, tag and submit to Shine portal | — | `chore: v1.0.0 final submission` | ⬜ |
 
 ### Built-in slack
 
-Days 4, 11, 12 and 15 are lighter than they look. If you fall behind, the safe cuts in priority order are: **(1)** LSTM on Day 15 — LightGBM will win anyway; **(2)** the deep SHAP dashboard integration on Day 20 — keep a static feature-importance plot instead; **(3)** reduce from 10 training cities to 5. Never cut: automation (Days 21–22), deployment (Day 23), or documentation (Days 26–27). Those are what the certificate is actually judged on.
+Days 4, 11, 12 and 15 are lighter than they look. If you fall behind, the safe cuts in priority order are: **(1)** LSTM on Day 15 — LightGBM will win anyway; **(2)** the deep SHAP dashboard integration on Day 20 — keep a static feature-importance plot instead; **(3)** reduce from 10 training cities to 5. Never cut: automation (Days 21–22), deployment (Day 23), or documentation (Days 31–32). Those are what the certificate is actually judged on.
+
+**After Day 25: no more cuts.** The Phase 6 QA/validation phase (Days 26–30) is mandatory — correctness, data, model accuracy, performance, regression, and deployment are non-negotiable before the demo. Visual polish is already complete; do not add any.
 
 ---
 
 ## 7a. Weekly Sunday Review
 
-Every Sunday (Days 7, 14, 21, 28), before starting that day's new topics:
+Every Sunday (Days 7, 14, 21, 26, 33), before starting that day's new topics:
 
 1. **Full file walkthrough** — revisit every file created so far in the whole project (not just that week), one by one: what it does, why it exists, how it connects to the others. Cumulative, not just recent additions — the goal is that by Day 28 you can explain the entire codebase file by file, unprompted.
 2. **Progress check vs. this roadmap** — compare what's actually been built against the Day-by-Day plan (Section 7). Flag anything behind schedule and decide then whether to cut scope (Section 7's slack list) or catch up.
@@ -422,6 +480,8 @@ ci:       pipeline changes
 | R9 | Falling behind schedule | High | Medium | Cut list in Section 7. Decide by Day 20, not Day 27. |
 | R10 | Model performs poorly at +72h | Low | **High — this is expected** | Report it honestly. Forecast skill decaying with horizon is a real, correct finding. Reviewers respect a documented limitation far more than a suspiciously perfect number. |
 | R11 | Render free instance has no persistent disk — model artifacts lost on redeploy | Medium | Medium | Never rely on local files in `data/`; pull the registered artifact from Hopsworks Model Registry at boot (Day 23) |
+| R12 | v1–v9 trained on Apr–Aug 2026 data overlapping the 60-day holdout → invalid as clean unseen-data baselines | High | **Certain** | Retrain strictly-before-holdout candidate (lgbm_v10); document v6's overlap in the Final Model Health Report; Gate 3 treated as satisfied-by-disqualification |
+| R13 | Staged deploy breaks the live app (model swap / parquet dependency) | High | Low | Stage 1 (API + low-risk fixes) fully verified before Stage 2 (dashboard + model); keep `data/*.parquet` tracked through the demo (Render boot dependency); rollback = re-promote v6 |
 
 ---
 
@@ -446,8 +506,14 @@ ci:       pipeline changes
 - [ ] README: architecture diagram, screenshots, setup steps, results table
 - [ ] `docs/PROJECT_REPORT.md` complete
 - [ ] Test suite passes in CI
+- [ ] Full QA test suite passes (functional + regression) before the demo
+- [ ] Data quality audit PASS on the 4-year store, caveats documented
+- [ ] Model validated on genuinely unseen data (60-day temporal holdout + Sialkot generalization)
+- [ ] Final model decision (KEEP / PROMOTE) documented with evidence in the Final Model Health Report
+- [ ] Before/after performance benchmark published (median + P95) from the live Render deployment
+- [ ] Staged deployment policy followed: freeze → Stage 1 (API) → Stage 2 (dashboard + model) → verify
 - [ ] No secrets in git history
-- [ ] Commits on all 28 days
+- [ ] Commits on all 33 days
 - [ ] Repo tagged `v1.0.0`
 
 ---
@@ -469,19 +535,19 @@ final report — it proves the build covers the brief line by line.
 | 6 | Backfill historical (features, targets) for training data | `src/data_ingestion/historical_backfill.py` — 10 cities × 4 years, chunked + verified | ✅ done (Day 8) |
 | 7 | Training fetches historical (features, targets) from the Feature Store | `src/training/train.py` `main()` via `get_feature_store().read_features()` | ✅ done (Day 10) |
 | 8 | Experiment with Scikit-learn: Random Forest, Ridge Regression | Ridge: `src/training/train.py`; Random Forest | ✅ Ridge done (Day 10) · RF Day 11 |
-| 9 | TensorFlow/PyTorch for advanced models | LSTM baseline (Keras/TF) | Day 15 |
+| 9 | TensorFlow/PyTorch for advanced models | LSTM baseline (Keras/TF) | ✅ done (Day 15) |
 | 10 | Evaluate RMSE, MAE, R² | `src/training/evaluate.py` — shared metric functions + walk-forward harness | ✅ done (Day 9) |
 | 11 | Store trained model in a Model Registry | `src/training/model_registry.py` (+ Hopsworks registry, joblib fallback) | ✅ done (Day 14) |
-| 12 | CI/CD: feature script every hour + training script every day (Airflow/GitHub Actions or other) | `.github/workflows/feature_pipeline.yml` + `training_pipeline.yml` (GitHub Actions cron + manual dispatch) | Days 21–22 |
+| 12 | CI/CD: feature script every hour + training script every day (Airflow/GitHub Actions or other) | `.github/workflows/feature_pipeline.yml` + `training_pipeline.yml` (GitHub Actions cron + manual dispatch) | ✅ done (Days 21–22) |
 | 13 | Web app loads model + features, shows predictions on a dashboard | `src/inference/predict.py` + `app/streamlit_app.py` | ✅ predict.py done (Day 16) · Streamlit Days 17–18 |
-| 14 | Use Streamlit/Gradio **and** Flask/FastAPI | `app/streamlit_app.py` + `app/api.py` (`/predict?lat=&lon=` → +24/48/72h JSON) | Days 17–19 |
+| 14 | Use Streamlit/Gradio **and** Flask/FastAPI | `app/streamlit_app.py` + `app/api.py` (`/predict?lat=&lon=` → +24/48/72h JSON) | ✅ done (Days 17–19) |
 | 15 | EDA to identify trends | `notebooks/01_eda.ipynb` + written-up findings (10 cities) | ✅ done (Days 2–4) |
 | 16 | Variety of forecasting models: statistical → deep learning | persistence → seasonal naive → Ridge → Random Forest → LightGBM → LSTM | ✅ all done (Days 9–15) |
-| 17 | SHAP or LIME for feature importance | SHAP TreeExplainer in dashboard | Day 20 |
-| 18 | Alerts for hazardous AQI levels | `src/utils/aqi_utils.py` + `app/components/forecast_cards.py` | Day 19 |
-| 19 | Dashboard shows real-time **and** forecasted AQI | Current AQI + +24/48/72h forecast + trends | Days 17–20 |
+| 17 | SHAP or LIME for feature importance | SHAP TreeExplainer in dashboard | ✅ done (Day 20) |
+| 18 | Alerts for hazardous AQI levels | `src/utils/aqi_utils.py` + `app/components/forecast_cards.py` | ✅ done (Day 19) |
+| 19 | Dashboard shows real-time **and** forecasted AQI | Current AQI + +24/48/72h forecast + trends | ✅ done (Days 17–20) |
 | 20 | 100% serverless stack | GitHub Actions + Render + Hopsworks serverless + Open-Meteo (no Docker/Airflow/MLflow) | ✅ by design (Section 6) |
-| 21 | Final: end-to-end system, automated pipeline, interactive dashboard, detailed report | Repo + `docs/PROJECT_REPORT.md` + README | Days 26–28 |
+| 21 | Final: end-to-end system, automated pipeline, interactive dashboard, detailed report | Repo + `docs/PROJECT_REPORT.md` + README | Days 31–33 (Phase 7) |
 | 22 | **Differentiator (KEEP — unique idea): predict for ANY city, not just one** | City-agnostic global model: 10 training cities + unseen-city holdout (Sialkot); dashboard auto-detects location (geolocation → IP → manual search) | ✅ designed Day 1, code Days 16–18. Exceeds the brief's single-city scope — this is what makes the project stand out |
 
 > **Where we exceed the brief:** the brief asks to predict "your city". We
