@@ -201,6 +201,10 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
     # feature names against what the model was fitted with, and warn (or
     # misalign) if they're missing. row is indexed by feature_cols, so
     # to_frame().T rebuilds the exact training column order + names.
+    # .astype(float) is REQUIRED: feature columns arrive mixed
+    # float32/float64/int64, which pandas keeps as object dtype (and
+    # Series.round() then raises "Expected numeric dtype").
+    row = row.astype(float)
     X = row.to_frame().T
     forecast = {}
     for h in FORECAST_HORIZONS:

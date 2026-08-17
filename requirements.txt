@@ -4,7 +4,7 @@ retry-requests
 tzdata  # IANA tz database for zoneinfo — Windows Python ships none, so
         # ZoneInfo() would raise ZoneInfoNotFoundError there (Day 24)
 pandas
-numpy
+numpy>=2.0,<2.5  # scipy 1.18 requires numpy>=2.0 (Day 27 QA: env mismatch broke model loading); <2.5 matches feature-store pin
 python-dotenv
 pyarrow
 scikit-learn
