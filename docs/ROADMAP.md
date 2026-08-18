@@ -408,7 +408,7 @@ This phase is non-negotiable: QA testing, data validation, model accuracy verifi
 
 | Day | Date | Theme | NEW | Commit | Status |
 |---|---|---|---|---|---|
-| 31 | Fri 21 Aug | **Mentor demo (hard deadline).** README with architecture diagram, screenshots, setup instructions, results table — reached ONLY after Phase 6 completes | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` | ⬜ |
+| 31 | Fri 21 Aug | **Mentor demo (hard deadline).** README with architecture diagram, screenshots, setup instructions, results table — reached ONLY after Phase 6 completes | `README.md` (full rewrite), `docs/ARCHITECTURE.md` | `docs: comprehensive README and architecture` | ✅ done (README + ARCHITECTURE + live screenshots) |
 | 32 | Sat 22 Aug | Project report: problem, approach, experiments, results, limitations, future work — folds in the Final Model Health Report numbers | `docs/PROJECT_REPORT.md` | `docs: final project report` | ⬜ |
 | 33 | Sun 23 Aug | Full review, README screenshots, verify every scheduled run is green, tag and submit to Shine portal | — | `chore: v1.0.0 final submission` | ⬜ |
 
