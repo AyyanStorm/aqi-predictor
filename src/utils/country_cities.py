@@ -31,6 +31,8 @@ _DATASET = Path(__file__).resolve().parents[1] / "data" / "worldcities.json.gz"
 # (Open-Meteo geocoding / ipapi / Nominatim) and simplemaps country
 # names. Keys are lowercase; values are the canonical simplemaps name.
 _COUNTRY_ALIASES = {
+    "pk": "Pakistan",
+    "pakis": "Pakistan",
     "usa": "United States",
     "us": "United States",
     "united states of america": "United States",

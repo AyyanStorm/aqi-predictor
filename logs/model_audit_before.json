@@ -1,0 +1,640 @@
+{
+  "model": "lgbm_v6",
+  "holdout_days": 60,
+  "holdout_start": "2026-06-13",
+  "holdout_rows": 14410,
+  "train_rows": 337910,
+  "horizons": {
+    "24": {
+      "persistence": {
+        "rmse": 22.435,
+        "mae": 15.217,
+        "r2": 0.626,
+        "mape": 12.689,
+        "n": 14410,
+        "mae_target_met": true
+      },
+      "seasonal_naive": {
+        "rmse": 31.95,
+        "mae": 22.864,
+        "r2": 0.253,
+        "mape": 19.778,
+        "n": 12970,
+        "mae_target_met": false
+      },
+      "v6": {
+        "rmse": 15.862,
+        "mae": 11.54,
+        "r2": 0.813,
+        "mape": 9.637,
+        "n": 14410,
+        "mae_target_met": true
+      }
+    },
+    "48": {
+      "persistence": {
+        "rmse": 27.877,
+        "mae": 19.365,
+        "r2": 0.421,
+        "mape": 16.287,
+        "n": 14410,
+        "mae_target_met": true
+      },
+      "seasonal_naive": {
+        "rmse": 31.98,
+        "mae": 22.947,
+        "r2": 0.252,
+        "mape": 19.842,
+        "n": 13210,
+        "mae_target_met": true
+      },
+      "v6": {
+        "rmse": 19.054,
+        "mae": 14.322,
+        "r2": 0.729,
+        "mape": 11.902,
+        "n": 14410,
+        "mae_target_met": true
+      }
+    },
+    "72": {
+      "persistence": {
+        "rmse": 30.192,
+        "mae": 21.393,
+        "r2": 0.32,
+        "mape": 18.114,
+        "n": 14410,
+        "mae_target_met": true
+      },
+      "seasonal_naive": {
+        "rmse": 31.925,
+        "mae": 22.929,
+        "r2": 0.253,
+        "mape": 19.837,
+        "n": 13450,
+        "mae_target_met": true
+      },
+      "v6": {
+        "rmse": 19.667,
+        "mae": 14.758,
+        "r2": 0.712,
+        "mape": 12.26,
+        "n": 14410,
+        "mae_target_met": true
+      }
+    }
+  },
+  "gates_v6_on_holdout": {
+    "24": {
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 20
+    },
+    "48": {
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 25
+    },
+    "72": {
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 30
+    }
+  },
+  "all_hard_gates_pass": true,
+  "per_city_v6": [
+    {
+      "city": "Faisalabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 12.72,
+      "rmse": 16.59
+    },
+    {
+      "city": "Faisalabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 15.54,
+      "rmse": 19.87
+    },
+    {
+      "city": "Faisalabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 14.89,
+      "rmse": 19.02
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 13.9,
+      "rmse": 17.72
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 18.03,
+      "rmse": 21.85
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 18.59,
+      "rmse": 22.27
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 5.25,
+      "rmse": 6.87
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 6.02,
+      "rmse": 8.05
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 5.72,
+      "rmse": 7.82
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 11.59,
+      "rmse": 14.93
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 15.29,
+      "rmse": 18.89
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 16.6,
+      "rmse": 20.55
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 3.86,
+      "rmse": 4.95
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 4.8,
+      "rmse": 6.23
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 4.71,
+      "rmse": 6.24
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 15.46,
+      "rmse": 21.87
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 18.96,
+      "rmse": 25.83
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 19.77,
+      "rmse": 26.45
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 11.59,
+      "rmse": 15.18
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 14.54,
+      "rmse": 17.82
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 15.45,
+      "rmse": 18.94
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 13.03,
+      "rmse": 16.37
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 16.13,
+      "rmse": 19.5
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 16.12,
+      "rmse": 19.4
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 16.42,
+      "rmse": 20.82
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 18.52,
+      "rmse": 24.0
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 19.05,
+      "rmse": 25.13
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 11.57,
+      "rmse": 14.89
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 15.38,
+      "rmse": 18.89
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 16.7,
+      "rmse": 20.53
+    }
+  ],
+  "per_band_v6": [
+    {
+      "horizon_h": 24,
+      "band": "Hazardous",
+      "n": 396,
+      "mae": 16.88,
+      "rmse": 27.21
+    },
+    {
+      "horizon_h": 24,
+      "band": "Moderate",
+      "n": 5206,
+      "mae": 8.44,
+      "rmse": 12.01
+    },
+    {
+      "horizon_h": 24,
+      "band": "Unhealthy",
+      "n": 3815,
+      "mae": 14.06,
+      "rmse": 18.22
+    },
+    {
+      "horizon_h": 24,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4845,
+      "mae": 11.79,
+      "rmse": 15.0
+    },
+    {
+      "horizon_h": 24,
+      "band": "Very Unhealthy",
+      "n": 148,
+      "mae": 33.26,
+      "rmse": 39.0
+    },
+    {
+      "horizon_h": 48,
+      "band": "Hazardous",
+      "n": 389,
+      "mae": 21.99,
+      "rmse": 33.5
+    },
+    {
+      "horizon_h": 48,
+      "band": "Moderate",
+      "n": 5172,
+      "mae": 10.7,
+      "rmse": 14.82
+    },
+    {
+      "horizon_h": 48,
+      "band": "Unhealthy",
+      "n": 3872,
+      "mae": 18.46,
+      "rmse": 22.79
+    },
+    {
+      "horizon_h": 48,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4825,
+      "mae": 13.41,
+      "rmse": 16.66
+    },
+    {
+      "horizon_h": 48,
+      "band": "Very Unhealthy",
+      "n": 152,
+      "mae": 41.46,
+      "rmse": 45.16
+    },
+    {
+      "horizon_h": 72,
+      "band": "Hazardous",
+      "n": 395,
+      "mae": 24.32,
+      "rmse": 35.51
+    },
+    {
+      "horizon_h": 72,
+      "band": "Moderate",
+      "n": 5164,
+      "mae": 11.19,
+      "rmse": 15.64
+    },
+    {
+      "horizon_h": 72,
+      "band": "Unhealthy",
+      "n": 3869,
+      "mae": 19.15,
+      "rmse": 23.48
+    },
+    {
+      "horizon_h": 72,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4830,
+      "mae": 13.36,
+      "rmse": 16.67
+    },
+    {
+      "horizon_h": 72,
+      "band": "Very Unhealthy",
+      "n": 152,
+      "mae": 43.75,
+      "rmse": 47.03
+    }
+  ],
+  "sialkot": {
+    "rows": 35232,
+    "horizons": {
+      "24": {
+        "rmse": 17.498,
+        "mae": 13.585,
+        "r2": 0.823,
+        "mape": 10.708,
+        "n": 35232,
+        "mae_target_met": true
+      },
+      "48": {
+        "rmse": 22.819,
+        "mae": 18.157,
+        "r2": 0.7,
+        "mape": 14.615,
+        "n": 35232,
+        "mae_target_met": true
+      },
+      "72": {
+        "rmse": 24.04,
+        "mae": 19.173,
+        "r2": 0.667,
+        "mape": 15.534,
+        "n": 35232,
+        "mae_target_met": true
+      }
+    },
+    "per_band_v6": [
+      {
+        "horizon_h": 24,
+        "band": "Good",
+        "n": 44,
+        "mae": 19.64,
+        "rmse": 33.52
+      },
+      {
+        "horizon_h": 24,
+        "band": "Hazardous",
+        "n": 1039,
+        "mae": 17.85,
+        "rmse": 23.21
+      },
+      {
+        "horizon_h": 24,
+        "band": "Moderate",
+        "n": 6879,
+        "mae": 14.58,
+        "rmse": 18.5
+      },
+      {
+        "horizon_h": 24,
+        "band": "Unhealthy",
+        "n": 12701,
+        "mae": 12.34,
+        "rmse": 16.2
+      },
+      {
+        "horizon_h": 24,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 12096,
+        "mae": 13.4,
+        "rmse": 16.81
+      },
+      {
+        "horizon_h": 24,
+        "band": "Very Unhealthy",
+        "n": 2473,
+        "mae": 16.25,
+        "rmse": 20.84
+      },
+      {
+        "horizon_h": 48,
+        "band": "Good",
+        "n": 44,
+        "mae": 65.24,
+        "rmse": 76.72
+      },
+      {
+        "horizon_h": 48,
+        "band": "Hazardous",
+        "n": 1037,
+        "mae": 23.06,
+        "rmse": 31.0
+      },
+      {
+        "horizon_h": 48,
+        "band": "Moderate",
+        "n": 6879,
+        "mae": 20.76,
+        "rmse": 25.04
+      },
+      {
+        "horizon_h": 48,
+        "band": "Unhealthy",
+        "n": 12699,
+        "mae": 18.32,
+        "rmse": 22.55
+      },
+      {
+        "horizon_h": 48,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 12100,
+        "mae": 15.05,
+        "rmse": 19.0
+      },
+      {
+        "horizon_h": 48,
+        "band": "Very Unhealthy",
+        "n": 2473,
+        "mae": 22.39,
+        "rmse": 28.1
+      },
+      {
+        "horizon_h": 72,
+        "band": "Good",
+        "n": 44,
+        "mae": 89.99,
+        "rmse": 93.2
+      },
+      {
+        "horizon_h": 72,
+        "band": "Hazardous",
+        "n": 1035,
+        "mae": 23.42,
+        "rmse": 30.92
+      },
+      {
+        "horizon_h": 72,
+        "band": "Moderate",
+        "n": 6878,
+        "mae": 21.76,
+        "rmse": 26.21
+      },
+      {
+        "horizon_h": 72,
+        "band": "Unhealthy",
+        "n": 12699,
+        "mae": 19.69,
+        "rmse": 24.09
+      },
+      {
+        "horizon_h": 72,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 12103,
+        "mae": 15.63,
+        "rmse": 19.74
+      },
+      {
+        "horizon_h": 72,
+        "band": "Very Unhealthy",
+        "n": 2473,
+        "mae": 23.62,
+        "rmse": 29.69
+      }
+    ],
+    "baselines": {
+      "24": {
+        "persistence": {
+          "rmse": 23.548,
+          "mae": 17.429,
+          "r2": 0.68,
+          "mape": 13.994,
+          "n": 35232,
+          "mae_target_met": true
+        },
+        "seasonal_naive": {
+          "rmse": 38.481,
+          "mae": 29.124,
+          "r2": 0.147,
+          "mape": 23.441,
+          "n": 35088,
+          "mae_target_met": false
+        }
+      },
+      "48": {
+        "persistence": {
+          "rmse": 31.426,
+          "mae": 23.543,
+          "r2": 0.43,
+          "mape": 19.123,
+          "n": 35232,
+          "mae_target_met": true
+        },
+        "seasonal_naive": {
+          "rmse": 38.471,
+          "mae": 29.115,
+          "r2": 0.147,
+          "mape": 23.433,
+          "n": 35112,
+          "mae_target_met": false
+        }
+      },
+      "72": {
+        "persistence": {
+          "rmse": 34.632,
+          "mae": 25.775,
+          "r2": 0.308,
+          "mape": 20.877,
+          "n": 35232,
+          "mae_target_met": true
+        },
+        "seasonal_naive": {
+          "rmse": 38.458,
+          "mae": 29.099,
+          "r2": 0.147,
+          "mape": 23.42,
+          "n": 35136,
+          "mae_target_met": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,536 @@
+{
+  "model": "lgbm",
+  "trained_on": "< 2026-06-13 (337910 rows)",
+  "holdout": {
+    "24": {
+      "rmse": 17.615,
+      "mae": 12.509,
+      "r2": 0.769,
+      "mape": 10.33,
+      "n": 14410,
+      "mae_target_met": true
+    },
+    "48": {
+      "rmse": 22.066,
+      "mae": 15.982,
+      "r2": 0.637,
+      "mape": 13.103,
+      "n": 14410,
+      "mae_target_met": true
+    },
+    "72": {
+      "rmse": 22.643,
+      "mae": 16.517,
+      "r2": 0.618,
+      "mape": 13.531,
+      "n": 14410,
+      "mae_target_met": true
+    }
+  },
+  "per_city": [
+    {
+      "city": "Faisalabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 13.83,
+      "rmse": 18.25
+    },
+    {
+      "city": "Faisalabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 17.59,
+      "rmse": 23.15
+    },
+    {
+      "city": "Faisalabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 16.93,
+      "rmse": 22.42
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 15.52,
+      "rmse": 20.34
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 20.41,
+      "rmse": 25.21
+    },
+    {
+      "city": "Gujranwala",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 21.07,
+      "rmse": 25.66
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 5.22,
+      "rmse": 6.84
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 6.2,
+      "rmse": 8.35
+    },
+    {
+      "city": "Hyderabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 6.03,
+      "rmse": 8.03
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 12.38,
+      "rmse": 16.04
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 17.3,
+      "rmse": 21.24
+    },
+    {
+      "city": "Islamabad",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 18.75,
+      "rmse": 22.99
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 3.94,
+      "rmse": 5.02
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 4.8,
+      "rmse": 6.2
+    },
+    {
+      "city": "Karachi",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 5.1,
+      "rmse": 6.68
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 17.71,
+      "rmse": 26.03
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 23.0,
+      "rmse": 34.47
+    },
+    {
+      "city": "Lahore",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 23.79,
+      "rmse": 34.6
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 12.86,
+      "rmse": 16.48
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 16.21,
+      "rmse": 19.72
+    },
+    {
+      "city": "Multan",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 17.13,
+      "rmse": 20.96
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 13.3,
+      "rmse": 16.65
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 16.75,
+      "rmse": 20.29
+    },
+    {
+      "city": "Peshawar",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 16.92,
+      "rmse": 20.38
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 18.02,
+      "rmse": 23.41
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 20.3,
+      "rmse": 26.59
+    },
+    {
+      "city": "Quetta",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 20.66,
+      "rmse": 27.47
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 24,
+      "n": 1441,
+      "mae": 12.33,
+      "rmse": 15.9
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 48,
+      "n": 1441,
+      "mae": 17.24,
+      "rmse": 21.05
+    },
+    {
+      "city": "Rawalpindi",
+      "horizon_h": 72,
+      "n": 1441,
+      "mae": 18.78,
+      "rmse": 22.85
+    }
+  ],
+  "per_band": [
+    {
+      "horizon_h": 24,
+      "band": "Hazardous",
+      "n": 396,
+      "mae": 18.54,
+      "rmse": 33.33
+    },
+    {
+      "horizon_h": 24,
+      "band": "Moderate",
+      "n": 5206,
+      "mae": 8.76,
+      "rmse": 12.77
+    },
+    {
+      "horizon_h": 24,
+      "band": "Unhealthy",
+      "n": 3815,
+      "mae": 16.08,
+      "rmse": 20.97
+    },
+    {
+      "horizon_h": 24,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4845,
+      "mae": 12.55,
+      "rmse": 16.04
+    },
+    {
+      "horizon_h": 24,
+      "band": "Very Unhealthy",
+      "n": 148,
+      "mae": 35.27,
+      "rmse": 41.73
+    },
+    {
+      "horizon_h": 48,
+      "band": "Hazardous",
+      "n": 389,
+      "mae": 26.98,
+      "rmse": 47.89
+    },
+    {
+      "horizon_h": 48,
+      "band": "Moderate",
+      "n": 5172,
+      "mae": 11.58,
+      "rmse": 16.33
+    },
+    {
+      "horizon_h": 48,
+      "band": "Unhealthy",
+      "n": 3872,
+      "mae": 21.23,
+      "rmse": 26.07
+    },
+    {
+      "horizon_h": 48,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4825,
+      "mae": 14.46,
+      "rmse": 18.14
+    },
+    {
+      "horizon_h": 48,
+      "band": "Very Unhealthy",
+      "n": 152,
+      "mae": 52.09,
+      "rmse": 58.81
+    },
+    {
+      "horizon_h": 72,
+      "band": "Hazardous",
+      "n": 395,
+      "mae": 29.23,
+      "rmse": 49.01
+    },
+    {
+      "horizon_h": 72,
+      "band": "Moderate",
+      "n": 5164,
+      "mae": 12.09,
+      "rmse": 16.96
+    },
+    {
+      "horizon_h": 72,
+      "band": "Unhealthy",
+      "n": 3869,
+      "mae": 22.14,
+      "rmse": 27.02
+    },
+    {
+      "horizon_h": 72,
+      "band": "Unhealthy for Sensitive Groups",
+      "n": 4830,
+      "mae": 14.55,
+      "rmse": 18.08
+    },
+    {
+      "horizon_h": 72,
+      "band": "Very Unhealthy",
+      "n": 152,
+      "mae": 53.33,
+      "rmse": 60.16
+    }
+  ],
+  "gates": {
+    "24": {
+      "candidate_rmse": 17.615,
+      "persistence_rmse": 22.435,
+      "seasonal_rmse": 31.95,
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 20
+    },
+    "48": {
+      "candidate_rmse": 22.066,
+      "persistence_rmse": 27.877,
+      "seasonal_rmse": 31.98,
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 25
+    },
+    "72": {
+      "candidate_rmse": 22.643,
+      "persistence_rmse": 30.192,
+      "seasonal_rmse": 31.925,
+      "beats_persistence": true,
+      "beats_seasonal_naive": true,
+      "mae_target_met": true,
+      "reference_mae": 30
+    }
+  },
+  "all_hard_gates_pass": true,
+  "sialkot": {
+    "rows": 35232,
+    "horizons": {
+      "24": {
+        "rmse": 17.497,
+        "mae": 13.555,
+        "r2": 0.813,
+        "mape": 10.478,
+        "n": 30624,
+        "mae_target_met": true
+      },
+      "48": {
+        "rmse": 22.364,
+        "mae": 17.768,
+        "r2": 0.696,
+        "mape": 14.106,
+        "n": 30624,
+        "mae_target_met": true
+      },
+      "72": {
+        "rmse": 23.275,
+        "mae": 18.597,
+        "r2": 0.671,
+        "mape": 14.763,
+        "n": 30624,
+        "mae_target_met": true
+      }
+    },
+    "per_band": [
+      {
+        "horizon_h": 24,
+        "band": "Good",
+        "n": 44,
+        "mae": 19.0,
+        "rmse": 32.41
+      },
+      {
+        "horizon_h": 24,
+        "band": "Hazardous",
+        "n": 937,
+        "mae": 17.68,
+        "rmse": 23.17
+      },
+      {
+        "horizon_h": 24,
+        "band": "Moderate",
+        "n": 5143,
+        "mae": 14.98,
+        "rmse": 18.8
+      },
+      {
+        "horizon_h": 24,
+        "band": "Unhealthy",
+        "n": 11988,
+        "mae": 12.34,
+        "rmse": 16.29
+      },
+      {
+        "horizon_h": 24,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 10593,
+        "mae": 13.2,
+        "rmse": 16.58
+      },
+      {
+        "horizon_h": 24,
+        "band": "Very Unhealthy",
+        "n": 1919,
+        "mae": 17.15,
+        "rmse": 21.86
+      },
+      {
+        "horizon_h": 48,
+        "band": "Good",
+        "n": 44,
+        "mae": 62.78,
+        "rmse": 76.04
+      },
+      {
+        "horizon_h": 48,
+        "band": "Hazardous",
+        "n": 935,
+        "mae": 23.13,
+        "rmse": 31.38
+      },
+      {
+        "horizon_h": 48,
+        "band": "Moderate",
+        "n": 5143,
+        "mae": 21.35,
+        "rmse": 25.39
+      },
+      {
+        "horizon_h": 48,
+        "band": "Unhealthy",
+        "n": 11989,
+        "mae": 17.52,
+        "rmse": 21.59
+      },
+      {
+        "horizon_h": 48,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 10570,
+        "mae": 14.68,
+        "rmse": 18.48
+      },
+      {
+        "horizon_h": 48,
+        "band": "Very Unhealthy",
+        "n": 1943,
+        "mae": 23.03,
+        "rmse": 28.95
+      },
+      {
+        "horizon_h": 72,
+        "band": "Good",
+        "n": 44,
+        "mae": 76.21,
+        "rmse": 80.71
+      },
+      {
+        "horizon_h": 72,
+        "band": "Hazardous",
+        "n": 934,
+        "mae": 23.01,
+        "rmse": 30.56
+      },
+      {
+        "horizon_h": 72,
+        "band": "Moderate",
+        "n": 5121,
+        "mae": 22.12,
+        "rmse": 26.26
+      },
+      {
+        "horizon_h": 72,
+        "band": "Unhealthy",
+        "n": 11989,
+        "mae": 19.0,
+        "rmse": 23.17
+      },
+      {
+        "horizon_h": 72,
+        "band": "Unhealthy for Sensitive Groups",
+        "n": 10569,
+        "mae": 14.83,
+        "rmse": 18.66
+      },
+      {
+        "horizon_h": 72,
+        "band": "Very Unhealthy",
+        "n": 1967,
+        "mae": 23.79,
+        "rmse": 30.14
+      }
+    ]
+  }
+}

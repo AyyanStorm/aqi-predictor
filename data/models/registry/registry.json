@@ -1221,6 +1221,115 @@
       "version": 11
     },
     {
+      "artifact": "lgbm_v10_local_candidate.joblib",
+      "created_at": "2026-08-16T19:07:21.287392+00:00",
+      "feature_cols": [
+        "pm10",
+        "pm2_5",
+        "carbon_monoxide",
+        "nitrogen_dioxide",
+        "sulphur_dioxide",
+        "ozone",
+        "temperature_2m",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "relative_humidity_2m",
+        "surface_pressure",
+        "precipitation",
+        "boundary_layer_height",
+        "aqi_lag_1h",
+        "aqi_lag_24h",
+        "aqi_lag_168h",
+        "aqi_roll_mean_24h",
+        "aqi_roll_max_24h",
+        "aqi_roll_mean_168h",
+        "aqi_change_rate_24h",
+        "hour_sin",
+        "hour_cos",
+        "month_sin",
+        "month_cos",
+        "dow_sin",
+        "dow_cos",
+        "is_weekend",
+        "temperature_2m_24h",
+        "wind_speed_10m_24h",
+        "wind_direction_10m_24h",
+        "relative_humidity_2m_24h",
+        "surface_pressure_24h",
+        "precipitation_24h",
+        "boundary_layer_height_24h",
+        "hour_sin_24h",
+        "hour_cos_24h",
+        "month_sin_24h",
+        "month_cos_24h",
+        "dow_sin_24h",
+        "dow_cos_24h",
+        "is_weekend_24h",
+        "temperature_2m_48h",
+        "wind_speed_10m_48h",
+        "wind_direction_10m_48h",
+        "relative_humidity_2m_48h",
+        "surface_pressure_48h",
+        "precipitation_48h",
+        "boundary_layer_height_48h",
+        "hour_sin_48h",
+        "hour_cos_48h",
+        "month_sin_48h",
+        "month_cos_48h",
+        "dow_sin_48h",
+        "dow_cos_48h",
+        "is_weekend_48h",
+        "temperature_2m_72h",
+        "wind_speed_10m_72h",
+        "wind_direction_10m_72h",
+        "relative_humidity_2m_72h",
+        "surface_pressure_72h",
+        "precipitation_72h",
+        "boundary_layer_height_72h",
+        "hour_sin_72h",
+        "hour_cos_72h",
+        "month_sin_72h",
+        "month_cos_72h",
+        "dow_sin_72h",
+        "dow_cos_72h",
+        "is_weekend_72h"
+      ],
+      "mean_rmse": 20.7747,
+      "metrics": {
+        "24": {
+          "mae": 12.509,
+          "r2": 0.769,
+          "rmse": 17.615
+        },
+        "48": {
+          "mae": 15.982,
+          "r2": 0.637,
+          "rmse": 22.066
+        },
+        "72": {
+          "mae": 16.517,
+          "r2": 0.618,
+          "rmse": 22.643
+        }
+      },
+      "n_train_rows": 337910,
+      "name": "lgbm",
+      "notes": "Q3 final candidate: trained strictly before 60-day holdout (2026-06-13); all hard gates PASS on holdout; Sialkot MAE 13.6/17.8/18.6. Registered as CANDIDATE (NOT promoted) pending Wed deploy window per Q7-C. [RE-REGISTERED as v12 on 2026-08-17: CI pipeline also created a v10 full-data refit; candidate artifact preserved as lgbm_v10_local_candidate.joblib]",
+      "params": {
+        "learning_rate": 0.05,
+        "min_child_samples": 20,
+        "n_estimators": 500,
+        "num_leaves": 31
+      },
+      "promoted_at": null,
+      "status": "candidate",
+      "train_window": {
+        "end": "2026-06-13",
+        "start": "2022-08-06"
+      },
+      "version": 12
+    },
+    {
       "artifact": "lgbm_v12.joblib",
       "created_at": "2026-08-18T02:36:24.974259+00:00",
       "feature_cols": [
@@ -1314,7 +1423,7 @@
       },
       "n_train_rows": 353040,
       "name": "lgbm",
-      "notes": "full-data refit, walk-forward metrics from --register run",
+      "notes": "full-data refit, walk-forward metrics from --register run [RENUMBERED v12->v13 on 2026-08-18: version 12 assigned to the clean Q3 candidate lgbm_v10_local_candidate.joblib (strictly-before-holdout). This CI full-data refit overlaps the holdout and must NOT be promoted.]",
       "params": {
         "learning_rate": 0.05,
         "min_child_samples": 20,
@@ -1327,7 +1436,7 @@
         "end": "2026-08-15",
         "start": "2022-08-06"
       },
-      "version": 12
+      "version": 13
     }
   ]
 }
