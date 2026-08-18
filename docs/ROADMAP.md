@@ -364,7 +364,7 @@ This phase is non-negotiable: QA testing, data validation, model accuracy verifi
 | 26 | Sun 16 Aug | Data & System Audit: full 4-yr backfill v2, data-quality audit, incumbent-model audit, Render before-benchmark | `scripts/audit/data_audit.py`, `scripts/audit/model_audit.py`, `scripts/benchmark/before_benchmark.py` | `audit: 4yr backfill + data/model/before-benchmark baselines` | ✅ done |
 | 27 | Mon 17 Aug | Full QA Testing: functional + edge-case + regression across the whole system | `tests/test_api.py`, `tests/test_app_smoke.py`, `docs/QA_TEST_PLAN.md`, `docs/MANUAL_QA_CHECKLIST.md` | `test: full QA suite and manual checklist pass` | ✅ done |
 | 28 | Tue 18 Aug | Model Accuracy Audit & Retraining: clean holdout eval, horizon metrics, Sialkot, gates verdict | `scripts/audit/model_select.py`, `scripts/audit/final_candidate_eval.py` | `audit: candidate lgbm_v10 gates + Sialkot verdict` | ✅ done |
-| 29 | Wed 19 Aug | Staged Render deploy (freeze → Stage 1 API → Stage 2 dashboard + promote v10) + performance profiling & optimization | `scripts/benchmark/after_benchmark.py` | `perf: staged deploy v10 + bottleneck fixes` | ⬜ |
+| 29 | Wed 19 Aug | Staged Render deploy (freeze → Stage 1 API → Stage 2 dashboard + promote v10) + performance profiling & optimization | `scripts/benchmark/after_benchmark.py` | `perf: staged deploy v10 + bottleneck fixes` | ✅ done (v12 promoted, all perf targets met) |
 | 30 | Thu 20 Aug | Final regression re-run, after-benchmark, before/after table, Final Model Health Report | `docs/FINAL_MODEL_HEALTH_REPORT.md` | `docs: final model health report + after-benchmark` | ⬜ |
 
 **Day-by-day detail (each day: objective · tasks · expected output · dependencies · completion criteria):**
