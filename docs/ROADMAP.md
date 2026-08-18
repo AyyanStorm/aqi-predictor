@@ -365,7 +365,7 @@ This phase is non-negotiable: QA testing, data validation, model accuracy verifi
 | 27 | Mon 17 Aug | Full QA Testing: functional + edge-case + regression across the whole system | `tests/test_api.py`, `tests/test_app_smoke.py`, `docs/QA_TEST_PLAN.md`, `docs/MANUAL_QA_CHECKLIST.md` | `test: full QA suite and manual checklist pass` | ✅ done |
 | 28 | Tue 18 Aug | Model Accuracy Audit & Retraining: clean holdout eval, horizon metrics, Sialkot, gates verdict | `scripts/audit/model_select.py`, `scripts/audit/final_candidate_eval.py` | `audit: candidate lgbm_v10 gates + Sialkot verdict` | ✅ done |
 | 29 | Wed 19 Aug | Staged Render deploy (freeze → Stage 1 API → Stage 2 dashboard + promote v10) + performance profiling & optimization | `scripts/benchmark/after_benchmark.py` | `perf: staged deploy v10 + bottleneck fixes` | ✅ done (v12 promoted, all perf targets met) |
-| 30 | Thu 20 Aug | Final regression re-run, after-benchmark, before/after table, Final Model Health Report | `docs/FINAL_MODEL_HEALTH_REPORT.md` | `docs: final model health report + after-benchmark` | ⬜ |
+| 30 | Thu 20 Aug | Final regression re-run, after-benchmark, before/after table, Final Model Health Report | `docs/FINAL_MODEL_HEALTH_REPORT.md` | `docs: final model health report + after-benchmark` | ✅ done (v12 promoted, all perf targets met) |
 
 **Day-by-day detail (each day: objective · tasks · expected output · dependencies · completion criteria):**
 
@@ -397,7 +397,7 @@ This phase is non-negotiable: QA testing, data validation, model accuracy verifi
 - Dependencies: Days 27–28.
 - Completion criteria: both stages verified on the live URL; v12 promoted; before/after measurements recorded on the SAME deployed code.
 
-**Day 30 · Thu 20 Aug — Regression + After-Benchmark + Final Model Health Report**
+**Day 30 · Thu 20 Aug — Regression + After-Benchmark + Final Model Health Report** (✅ completed 18 Aug)
 - Objective: prove optimization/retraining broke nothing, publish before/after numbers, and deliver the final verdict report before the demo.
 - Tasks: full regression re-run (prediction functionality, city selection, country detection, timezone, forecasts, charts, map, top-10, multi-city comparison, APIs, mobile UI, error handling); after-benchmark on the same deployed code; before/after table (`Before: X → After: Y → Improvement: Z%`); **Final Model Health Report** containing: Data Health (missing data, leakage, timestamps, features), Model Health (current vs candidate, MAE/RMSE/R²/MAPE, +24/48/72h, per-city, Sialkot), Performance (before/after, median, P95, bottlenecks, improvements), and the **final decision: KEEP CURRENT MODEL or PROMOTE RETRAINED MODEL** with evidence.
 - Expected output: `docs/FINAL_MODEL_HEALTH_REPORT.md`, final `logs/after_benchmark.json`.
