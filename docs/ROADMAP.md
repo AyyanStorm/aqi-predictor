@@ -390,12 +390,12 @@ This phase is non-negotiable: QA testing, data validation, model accuracy verifi
 - Dependencies: Day 26 (data + holdout prep).
 - Completion criteria: verdict documented with evidence; candidate registered; nothing promoted until the Day 29 staged deploy.
 
-**Day 29 · Wed 19 Aug — Staged Deploy + Performance (Option A: verify, don't chase imaginary wins)**
+**Day 29 · Wed 19 Aug — Staged Deploy + Performance (Option A: verify, don't chase imaginary wins)** (✅ completed 18 Aug)
 - Objective: put the validated candidate + low-risk fixes live in controlled stages; profile and fix only genuine bottlenecks.
-- Tasks: **Deployment policy (locked):** freeze live Render during audit (already frozen) → **Stage 1:** API changes + low-risk fixes (incl. `normalize_country('PK')`) → verify `/health`, `/cities`, `/predict` → **Stage 2:** dashboard changes + **promote lgbm_v10** → full application verification. **Performance:** profile dashboard first render, prediction response, city search, map loading, `/predict`, `/cities`, `/health`, model loading, feature processing, chart rendering, Streamlit reruns, cache behavior — Render is the source of truth, localhost only for isolating bottlenecks; fix only real bottlenecks (candidate: map rate-limit strategy). Cold start (16.4s) measured separately, excluded from gates.
-- Expected output: live app serving v10; `logs/after_benchmark.json` (draft); targets table embedded: dashboard <3s · prediction <1.5s · city search <1s · map <4s · /predict <1.5s · /cities <1s · /health <500ms (median + P95, multi-run; no improvement claims without measurements).
+- Tasks: **Deployment policy (locked):** freeze live Render during audit (already frozen) → **Stage 1:** API changes + low-risk fixes (incl. `normalize_country('PK')`) → verify `/health`, `/cities`, `/predict` → **Stage 2:** dashboard changes + **promote lgbm_v12** → full application verification. **Performance:** profile dashboard first render, prediction response, city search, map loading, `/predict`, `/cities`, `/health`, model loading, feature processing, chart rendering, Streamlit reruns, cache behavior — Render is the source of truth, localhost only for isolating bottlenecks; fix only real bottlenecks (candidate: map rate-limit strategy). Cold start measured separately, excluded from gates.
+- Expected output: live app serving v12; `logs/after_benchmark.json` (draft); targets table embedded: dashboard <3s · prediction <1.5s · city search <1s · map <4s · /predict <1.5s · /cities <1s · /health <500ms (median + P95, multi-run; no improvement claims without measurements).
 - Dependencies: Days 27–28.
-- Completion criteria: both stages verified on the live URL; v10 promoted; before/after measurements recorded on the SAME deployed code.
+- Completion criteria: both stages verified on the live URL; v12 promoted; before/after measurements recorded on the SAME deployed code.
 
 **Day 30 · Thu 20 Aug — Regression + After-Benchmark + Final Model Health Report**
 - Objective: prove optimization/retraining broke nothing, publish before/after numbers, and deliver the final verdict report before the demo.
