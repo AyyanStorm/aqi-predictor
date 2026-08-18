@@ -12,11 +12,6 @@ pipeline, and a location-aware dashboard.
 
 ## 1. High-level view
 
-> **Live screenshots (production, serving lgbm_v12):**
-> | Dashboard — live forecast | Global AQI map |
-> |---|---|
-> | ![Dashboard](screenshots/dashboard_v12.png) | ![Map](screenshots/map_v12.png) |
-
 ```mermaid
 flowchart TB
     subgraph EXT["External Data Sources (free, no API key)"]

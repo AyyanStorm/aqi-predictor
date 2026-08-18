@@ -14,14 +14,6 @@ Pakistani cities, an automated data/training pipeline, and a location-aware dash
 
 ---
 
-## Screenshots
-
-| Dashboard — live forecast for Karachi | Global AQI map |
-|---|---|
-| ![Dashboard](docs/screenshots/dashboard_v12.png) | ![Map](docs/screenshots/map_v12.png) |
-
----
-
 ## What it does
 
 - **Location-aware**: opens on your city via browser geolocation, falls back to
