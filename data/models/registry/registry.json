@@ -18,6 +18,12 @@
       "promoted_at": "2026-08-17T02:41:19.500581+00:00",
       "reason": "manual promote",
       "version": 11
+    },
+    {
+      "name": "lgbm",
+      "promoted_at": "2026-08-18T04:35:09.319770+00:00",
+      "reason": "manual promote",
+      "version": 12
     }
   ],
   "versions": [
@@ -1213,7 +1219,7 @@
         "num_leaves": 31
       },
       "promoted_at": "2026-08-17T02:41:19.500581+00:00",
-      "status": "production",
+      "status": "archived",
       "train_window": {
         "end": "2026-08-14",
         "start": "2022-08-06"
@@ -1321,8 +1327,8 @@
         "n_estimators": 500,
         "num_leaves": 31
       },
-      "promoted_at": null,
-      "status": "candidate",
+      "promoted_at": "2026-08-18T04:35:09.319770+00:00",
+      "status": "production",
       "train_window": {
         "end": "2026-06-13",
         "start": "2022-08-06"
