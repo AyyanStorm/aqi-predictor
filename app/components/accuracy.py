@@ -319,20 +319,20 @@ def render_accuracy(user_id, loc):
                     "the navbar — it's tracked automatically, no extra setup."
                 )
 
-    # ---- Your Average Accuracy (global, across all tracked cities) ----
+    # ---- Global Average Accuracy (all users, all cities) ----
     st.divider()
-    st.subheader("🎯 Your Average Accuracy")
+    st.subheader("📈 Global Average Accuracy (All Users)")
     try:
-        all_records = _resolve_store().load(user_id=user_id)
+        all_records = store.load_all()
     except Exception as e:
-        logger.warning(f"load all predictions failed: {e}")
+        logger.warning(f"load_all predictions failed: {e}")
         all_records = pd.DataFrame()
 
     if all_records.empty:
         st.info(
             "No tracked predictions yet. Generate a forecast for any city "
-            "(including your own via 'Use my location') and your average "
-            "accuracy will build up automatically as the 72h windows complete."
+            "and global accuracy will build up automatically as the 72h "
+            "windows complete."
         )
         return
 
@@ -374,6 +374,18 @@ def render_accuracy(user_id, loc):
     with c_sup:
         n_pred = len(all_records)
         st.markdown(_metric_card(
+            "Tracking Summary",
+            f"{len(cities_seen)}",
+            f"cities tracked · {n_pred} prediction(s) saved (all users)",
+            "#9aa4b2",
+        ), unsafe_allow_html=True)
+
+    if periods:
+        first, last = min(periods), max(periods)
+        st.caption(
+            f"📅 Tracking period: {first.strftime('%b %d, %Y')} → "
+            f"{last.strftime('%b %d, %Y')}"
+        )
             "Tracking Summary",
             f"{len(cities_seen)}",
             f"cities tracked · {n_pred} prediction(s) saved",

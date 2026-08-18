@@ -69,6 +69,10 @@ class PredictionStore:
         """Return a DataFrame of predictions, optionally filtered."""
         raise NotImplementedError
 
+    def load_all(self):
+        """Return ALL predictions (no user/city filter) for global accuracy."""
+        raise NotImplementedError
+
 
 class HopsworksPredictionStore(PredictionStore):
     """Real Hopsworks backend (lazy import; HUDI; auto-create FG)."""
@@ -130,6 +134,12 @@ class HopsworksPredictionStore(PredictionStore):
             df = df[df["city"] == city]
         return _normalize(df)
 
+    def load_all(self):
+        """Return ALL predictions (no user/city filter) for global accuracy."""
+        fg = self._connect()
+        df = fg.read()
+        return _normalize(df)
+
 
 class ParquetPredictionStore(PredictionStore):
     """Local-disk fallback with the same interface.
@@ -189,6 +199,24 @@ class ParquetPredictionStore(PredictionStore):
         if city is not None:
             df = df[df["city"] == city]
         return df
+
+    def load_all(self):
+        """Return ALL predictions (no user/city filter) for global accuracy."""
+        if not self._path.exists():
+            return pd.DataFrame()
+        try:
+            return _normalize(pd.read_parquet(self._path))
+        except Exception as e:
+            logger.warning(f"Corrupt prediction store ({e}) — quarantining "
+                           f"and starting fresh")
+            backup = self._path.with_name(
+                f"predictions.corrupt.{int(__import__('time').time())}.parquet"
+            )
+            try:
+                self._path.rename(backup)
+            except Exception:
+                pass
+            return pd.DataFrame()
 
 
 def get_prediction_store():
