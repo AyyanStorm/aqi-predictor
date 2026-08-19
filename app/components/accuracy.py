@@ -334,6 +334,33 @@ def render_accuracy(user_id, loc):
             "and global accuracy will build up automatically as the 72h "
             "windows complete."
         )
+        # Migration button (only shows when local data exists but Hopsworks is empty)
+        if st.button("🔄 Migrate local predictions to Hopsworks"):
+            with st.spinner("Migrating..."):
+                try:
+                    from src.tracking.store import (
+                        ParquetPredictionStore, HopsworksPredictionStore
+                    )
+                    local_store = ParquetPredictionStore()
+                    local_records = local_store.load_all()
+                    if local_records.empty:
+                        st.warning("No local predictions to migrate")
+                    else:
+                        hopsworks_store = HopsworksPredictionStore()
+                        existing = hopsworks_store.load_all()
+                        existing_ids = set(existing["prediction_id"].tolist()) if not existing.empty else set()
+                        migrated = 0
+                        for _, row in local_records.iterrows():
+                            record = row.to_dict()
+                            pred_id = record.get("prediction_id")
+                            if pred_id in existing_ids:
+                                continue
+                            hopsworks_store.save(record)
+                            migrated += 1
+                        st.success(f"Migrated {migrated} predictions to Hopsworks!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Migration failed: {e}")
         return
 
     global_rows = []
