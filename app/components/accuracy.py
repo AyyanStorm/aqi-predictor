@@ -319,19 +319,23 @@ def render_accuracy(user_id, loc):
                     "the navbar — it's tracked automatically, no extra setup."
                 )
 
-    # ---- Global Average Accuracy (all users, all cities) ----
+    # ---- Average Accuracy ----
     st.divider()
-    st.subheader("📈 Global Average Accuracy (All Users)")
+    st.subheader("📈 Average Accuracy")
     try:
         all_records = store.load_all()
     except Exception as e:
         logger.warning(f"load_all predictions failed: {e}")
         all_records = pd.DataFrame()
 
+    # Filter to Karachi only (all our data is Karachi)
+    if not all_records.empty:
+        all_records = all_records[all_records["city"] == "Karachi"]
+
     if all_records.empty:
         st.info(
             "No tracked predictions yet. Generate a forecast for any city "
-            "and global accuracy will build up automatically as the 72h "
+            "and accuracy will build up automatically as the 72h "
             "windows complete."
         )
         # Migration button (only shows when local data exists but Hopsworks is empty)
@@ -364,7 +368,6 @@ def render_accuracy(user_id, loc):
         return
 
     global_rows = []
-    cities_seen = set()
     periods = []
     for _, r in all_records.iterrows():
         rec = r.to_dict()
@@ -377,7 +380,6 @@ def render_accuracy(user_id, loc):
             logger.warning(f"evaluate {rec.get('prediction_id')} failed: {e}")
             continue
         if results:
-            cities_seen.add(rec.get("city"))
             periods.append(pd.Timestamp(rec["base_ts"]))
         global_rows.extend(results)
 
@@ -402,8 +404,8 @@ def render_accuracy(user_id, loc):
         n_pred = len(all_records)
         st.markdown(_metric_card(
             "Tracking Summary",
-            f"{len(cities_seen)}",
-            f"cities tracked · {n_pred} prediction(s) saved (all users)",
+            f"{n_pred}",
+            f"prediction(s) evaluated",
             "#9aa4b2",
         ), unsafe_allow_html=True)
 
