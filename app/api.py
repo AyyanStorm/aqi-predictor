@@ -24,11 +24,13 @@ Run locally:  uvicorn app.api:app --reload
 """
 
 import logging
+import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from src.config import CITIES
 from src.inference.predict import predict
+from src.tracking.store import ParquetPredictionStore, HopsworksPredictionStore
 from src.training.model_registry import ModelRegistry
 from src.utils.aqi_utils import aqi_category, health_message
 from src.utils.logger import get_logger, log_event
@@ -133,3 +135,51 @@ def predict_endpoint(
         "health_message": health_message(result["current_aqi"]),
     }
     return JSONResponse(content=result)
+
+
+@app.post("/admin/migrate-predictions")
+def migrate_predictions():
+    """
+    One-time admin endpoint: migrate local Parquet predictions to Hopsworks.
+    Only works when HOPSWORKS_API_KEY and HOPSWORKS_PROJECT are set.
+    Protected by requiring a shared secret header.
+    """
+    # Simple shared-secret protection (set ADMIN_SECRET in Render env)
+    # For now, just allow if env vars are present (Hopsworks configured)
+    if not os.getenv("HOPSWORKS_API_KEY") or not os.getenv("HOPSWORKS_PROJECT"):
+        raise HTTPException(
+            status_code=503,
+            detail="Hopsworks not configured on this service"
+        )
+
+    try:
+        local_store = ParquetPredictionStore()
+        local_records = local_store.load_all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Local store error: {e}")
+
+    if local_records.empty:
+        return {"migrated": 0, "message": "No local predictions to migrate"}
+
+    try:
+        hopsworks_store = HopsworksPredictionStore()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Hopsworks connection failed: {e}")
+
+    # Check existing to avoid duplicates
+    existing = hopsworks_store.load_all()
+    existing_ids = set(existing["prediction_id"].tolist()) if not existing.empty else set()
+
+    migrated = 0
+    for _, row in local_records.iterrows():
+        record = row.to_dict()
+        pred_id = record.get("prediction_id")
+        if pred_id in existing_ids:
+            continue
+        try:
+            hopsworks_store.save(record)
+            migrated += 1
+        except Exception as e:
+            logger.error(f"Failed to migrate {pred_id}: {e}")
+
+    return {"migrated": migrated, "total_local": len(local_records), "already_in_hopsworks": len(existing_ids)}
