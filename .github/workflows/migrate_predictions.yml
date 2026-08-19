@@ -1,0 +1,25 @@
+name: Migrate Predictions to Hopsworks
+
+on:
+  workflow_dispatch:  # manual trigger from Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install pyarrow
+      - name: Run migration
+        run: python scripts/migrate_predictions_to_hopsworks.py
