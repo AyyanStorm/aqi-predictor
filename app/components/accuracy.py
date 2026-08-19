@@ -384,18 +384,6 @@ def render_accuracy(user_id, loc):
         first, last = min(periods), max(periods)
         st.caption(
             f"📅 Tracking period: {first.strftime('%b %d, %Y')} → "
-            f"{last.strftime('%b %d, %Y')}"
-        )
-            "Tracking Summary",
-            f"{len(cities_seen)}",
-            f"cities tracked · {n_pred} prediction(s) saved",
-            "#9aa4b2",
-        ), unsafe_allow_html=True)
-
-    if periods:
-        first, last = min(periods), max(periods)
-        st.caption(
-            f"📅 Tracking period: {first.strftime('%b %d, %Y')} → "
             f"{last.strftime('%b %d, %Y')} · "
             f"✅ {summary['n_correct']} within ±15 AQI · "
             f"📊 {summary['n_horizons']} horizons evaluated"
