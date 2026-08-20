@@ -14,6 +14,25 @@ Pakistani cities, an automated data/training pipeline, and a location-aware dash
 
 ---
 
+## Screenshots
+
+### Dashboard
+![Dashboard](screenshots/dashboard.jpg)
+
+### Map
+![Map](screenshots/map.jpg)
+
+### Compare
+![Compare](screenshots/compare.jpg)
+
+### Tracking
+![Tracking](screenshots/tracking.jpg)
+
+### Analytics
+![Analytics](screenshots/analytics.jpg)
+
+---
+
 ## What it does
 
 - **Location-aware**: opens on your city via browser geolocation, falls back to
