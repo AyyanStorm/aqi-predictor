@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+.venv*
+.env
+.env.local
+*.egg
+
+# Testing
+.pytest_cache
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Cache files
+.cache*
+*.sqlite
+*.db
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/cache/
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project-specific
+logs/
+notebooks/
+.clawhub/
+openclaw-workspace-state.json
+
+# CI/CD
+.github/
+
+# OS
+Thumbs.db
+.DS_Store
