@@ -1,0 +1,67 @@
+version: '3.9'
+
+services:
+  aqi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: aqi-api
+    ports:
+      - "8000:8000"
+    environment:
+      - HOPSWORKS_API_KEY=${HOPSWORKS_API_KEY}
+      - HOPSWORKS_PROJECT=${HOPSWORKS_PROJECT}
+      - HOPSWORKS_HOST=${HOPSWORKS_HOST:-eu-west.cloud.hopsworks.ai}
+      - HOPSWORKS_PORT=${HOPSWORKS_PORT:-443}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - aqi-dashboard
+    networks:
+      - aqi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  aqi-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: aqi-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - HOPSWORKS_API_KEY=${HOPSWORKS_API_KEY}
+      - HOPSWORKS_PROJECT=${HOPSWORKS_PROJECT}
+      - HOPSWORKS_HOST=${HOPSWORKS_HOST:-eu-west.cloud.hopsworks.ai}
+      - HOPSWORKS_PORT=${HOPSWORKS_PORT:-443}
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLECORS=false
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.streamlit:/app/.streamlit
+    networks:
+      - aqi-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  aqi-network:
+    driver: bridge
+
+volumes:
+  aqi-data:
+    driver: local
+  aqi-logs:
+    driver: local
