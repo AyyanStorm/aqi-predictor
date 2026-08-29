@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt requirements-feature-store.txt .
+
+# Install Python dependencies (both base + feature store)
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-feature-store.txt
+
+# Copy application code
+COPY . .
+
+# Feature pipeline entrypoint
+# Can be called as:
+#   docker run aqi-pipeline:latest  (runs default ingest)
+#   docker run aqi-pipeline:latest python -m src.training.train --model lgbm --register
+CMD ["python", "-m", "src.data_ingestion.ingest"]
