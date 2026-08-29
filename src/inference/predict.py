@@ -47,6 +47,7 @@ What this module provides:
 
 import argparse
 import json
+import logging
 
 import pandas as pd
 
@@ -59,10 +60,19 @@ from src.config import (
 )
 from src.data_ingestion.open_meteo_client import fetch_air_quality, fetch_weather
 from src.features.build_features import build_features
+from src.inference.cache import PredictionCache
+from src.inference.circuit_breaker import CircuitBreaker
 from src.training.model_registry import ModelRegistry
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, log_event
 
 logger = get_logger(__name__)
+
+# Initialize circuit breaker for Open-Meteo API
+# Opens after 5 consecutive failures, resets after 5 minutes
+api_breaker = CircuitBreaker(name='OpenMeteo', fail_max=5, reset_timeout=300)
+
+# Initialize prediction cache with 24-hour TTL
+cache = PredictionCache(max_age_hours=24)
 
 # How much history Family A needs: the longest lag is 168h (one week)
 # and the longest rolling window is 168h, so we fetch 10 days (240h) —
@@ -131,6 +141,9 @@ def fetch_live_frame(latitude, longitude, city="inference"):
 def predict(latitude, longitude, city="inference", name=None, version=None):
     """
     End-to-end inference: lat/lon -> 3-day AQI forecast.
+    
+    With graceful degradation: if the forecast API fails, returns cached
+    prediction from the last successful request (if available and fresh).
 
     Parameters
     ----------
@@ -152,83 +165,138 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
           "current_aqi": observed us_aqi at the prediction hour,
           "model": {"name", "version", "artifact", "mean_rmse"},
           "forecast": {"24": ..., "48": ..., "72": ...},   # ints
-          "features": {...}   # the exact feature vector fed to the model
+          "features": {...},   # the exact feature vector fed to the model
+          "status": "ok" | "degraded",  # New: status of prediction
+          "cache_age_hours": float,  # New: if degraded, age of cached data
+          "warning": str  # New: if degraded, explanation for user
         }
     """
-    reg = ModelRegistry()
-    if name is None:
-        # "Serve whatever is live right now" — the common inference call.
-        prod = reg.production_entry()
-        if prod is None:
-            raise SystemExit(
-                "No production model in the registry — train and promote "
-                "one first: python -m src.training.train --register"
-            )
-        name, version = prod["name"], prod["version"]
-        logger.info(f"Using production model {name}_v{version}")
+    
+    # Try to fetch live forecast
     try:
-        models, entry = reg.load(name, version)
-    except KeyError as e:
-        raise SystemExit(
-            f"{e}\nNo registered model to serve. Train and promote one first: "
-            f"python -m src.training.train --register"
+        logger.info(f'Attempting live forecast: lat={latitude}, lon={longitude}')
+        
+        # Protected by circuit breaker
+        df, now_ts = api_breaker.call(
+            fetch_live_frame, latitude, longitude, city=city
         )
-
-    df, now_ts = fetch_live_frame(latitude, longitude, city=city)
-    df = build_features(df)
-
-    feature_cols = entry["feature_cols"]
-    missing = [c for c in feature_cols if c not in df.columns]
-    if missing:
-        raise RuntimeError(
-            f"Model {entry['name']}_v{entry['version']} expects feature(s) "
-            f"{missing} that the live frame does not have — training/serving "
-            f"skew. Rebuild the model with the current build_features()."
+        
+        # Build features and run inference
+        df = build_features(df)
+        
+        reg = ModelRegistry()
+        if name is None:
+            prod = reg.production_entry()
+            if prod is None:
+                raise SystemExit(
+                    "No production model in the registry — train and promote "
+                    "one first: python -m src.training.train --register"
+                )
+            name, version = prod["name"], prod["version"]
+            logger.info(f"Using production model {name}_v{version}")
+        
+        try:
+            models, entry = reg.load(name, version)
+        except KeyError as e:
+            raise SystemExit(
+                f"{e}\nNo registered model to serve. Train and promote one first: "
+                f"python -m src.training.train --register"
+            )
+        
+        feature_cols = entry["feature_cols"]
+        missing = [c for c in feature_cols if c not in df.columns]
+        if missing:
+            raise RuntimeError(
+                f"Model {entry['name']}_v{entry['version']} expects feature(s) "
+                f"{missing} that the live frame does not have — training/serving "
+                f"skew. Rebuild the model with the current build_features()."
+            )
+        
+        row = df.loc[now_ts, feature_cols]
+        if row.isna().any():
+            nan_cols = row[row.isna()].index.tolist()
+            raise RuntimeError(
+                f"Prediction row at {now_ts} has NaN features: {nan_cols}. "
+                f"Not enough history for the lag/rolling features — "
+                f"increase HISTORY_DAYS."
+            )
+        
+        row = row.astype(float)
+        X = row.to_frame().T
+        forecast = {}
+        for h in FORECAST_HORIZONS:
+            raw = float(models[h].predict(X)[0])
+            forecast[str(h)] = max(0, round(raw))  # AQI is never negative
+        
+        result = {
+            "location": {"lat": latitude, "lon": longitude, "city": city},
+            "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(),
+            "current_aqi": int(round(float(df.loc[now_ts, "us_aqi"]))),
+            "model": {
+                "name": entry["name"],
+                "version": entry["version"],
+                "artifact": entry["artifact"],
+                "mean_rmse": entry["mean_rmse"],
+            },
+            "forecast": forecast,
+            "features": row.round(4).to_dict(),
+            "status": "ok"
+        }
+        
+        # Cache successful prediction
+        cache.set(latitude, longitude, result)
+        
+        logger.info(
+            f"Forecast for ({latitude}, {longitude}) [{city}]: "
+            + ", ".join(f"+{h}h={v}" for h, v in forecast.items())
         )
-
-    # The prediction row: everything must be known AT the press of the
-    # button (the Day 6 leakage rule), and it must be complete.
-    row = df.loc[now_ts, feature_cols]
-    if row.isna().any():
-        nan_cols = row[row.isna()].index.tolist()
-        raise RuntimeError(
-            f"Prediction row at {now_ts} has NaN features: {nan_cols}. "
-            f"Not enough history for the lag/rolling features — "
-            f"increase HISTORY_DAYS."
+        
+        return result
+    
+    except RuntimeError as e:
+        # API failed or circuit breaker open -> try cache
+        logger.warning(
+            f'Live forecast failed: {e}. Attempting fallback to cache.',
+            extra={'fields': {'lat': latitude, 'lon': longitude}}
         )
-
-    # One-row DataFrame, NOT a bare numpy array: sklearn/LightGBM check
-    # feature names against what the model was fitted with, and warn (or
-    # misalign) if they're missing. row is indexed by feature_cols, so
-    # to_frame().T rebuilds the exact training column order + names.
-    # .astype(float) is REQUIRED: feature columns arrive mixed
-    # float32/float64/int64, which pandas keeps as object dtype (and
-    # Series.round() then raises "Expected numeric dtype").
-    row = row.astype(float)
-    X = row.to_frame().T
-    forecast = {}
-    for h in FORECAST_HORIZONS:
-        raw = float(models[h].predict(X)[0])
-        forecast[str(h)] = max(0, round(raw))  # AQI is never negative
-
-    logger.info(
-        f"Forecast for ({latitude}, {longitude}) [{city}]: "
-        + ", ".join(f"+{h}h={v}" for h, v in forecast.items())
-    )
-
-    return {
-        "location": {"lat": latitude, "lon": longitude, "city": city},
-        "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(),
-        "current_aqi": int(round(float(df.loc[now_ts, "us_aqi"]))),
-        "model": {
-            "name": entry["name"],
-            "version": entry["version"],
-            "artifact": entry["artifact"],
-            "mean_rmse": entry["mean_rmse"],
-        },
-        "forecast": forecast,
-        "features": row.round(4).to_dict(),
-    }
+        
+        cached_data, cache_age_hours = cache.get(latitude, longitude)
+        
+        if cached_data:
+            # Return cached data with degraded status
+            log_event(
+                logger, 'prediction_degraded',
+                level=logging.WARNING,
+                lat=latitude, lon=longitude,
+                cache_age_hours=round(cache_age_hours, 1),
+                reason=str(e)
+            )
+            
+            return {
+                **cached_data,
+                "status": "degraded",
+                "cache_age_hours": round(cache_age_hours, 1),
+                "warning": (
+                    f"Using cached prediction from {cache_age_hours:.1f} hours ago. "
+                    f"Forecast API is temporarily unavailable. "
+                    f"Please try again in a few minutes."
+                )
+            }
+        else:
+            # No cache available -> fail
+            log_event(
+                logger, 'prediction_failed',
+                level=logging.ERROR,
+                lat=latitude, lon=longitude,
+                error=str(e)
+            )
+            
+            raise RuntimeError(
+                f"Forecast service unavailable. "
+                f"Error: {e}. "
+                f"No cached prediction available. "
+                f"Please try again in 5 minutes."
+            )
 
 
 def main():

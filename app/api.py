@@ -25,7 +25,9 @@ Run locally:  uvicorn app.api:app --reload
 
 import logging
 import os
-from fastapi import FastAPI, HTTPException, Query
+import uuid
+from datetime import datetime, timezone
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.config import CITIES
@@ -39,10 +41,34 @@ logger = get_logger(__name__)
 
 app = FastAPI(
     title="AQI Predictor — Pakistan",
-    description="Live air quality forecast (+24h/+48h/+72h) for any "
-                "coordinates on Earth, served by a city-agnostic model "
-                "trained on 10 Pakistani cities.",
+    description="""
+    Live air quality forecast (+24h/+48h/+72h) for any coordinates on Earth.
+    
+    Served by a city-agnostic LightGBM model trained on 10 Pakistani cities
+    (Karachi, Lahore, Islamabad, Faisalabad, Rawalpindi, Multan, Peshawar,
+    Quetta, Hyderabad, Gujranwala).
+    
+    ## Features
+    - **Current AQI**: Observed air quality index at prediction time
+    - **3-Day Forecast**: +24h, +48h, +72h predictions with EPA band labels
+    - **Explainability**: SHAP-based feature importance for each prediction
+    - **Graceful Degradation**: Returns cached predictions if API unavailable
+    
+    ## Usage Example
+    ```bash
+    curl 'https://api.example.com/predict?lat=24.86&lon=67.01&city=Karachi'
+    ```
+    
+    ## Error Handling
+    - **400**: Invalid request (bad coordinates, missing parameters)
+    - **503**: Forecast service temporarily unavailable (circuit breaker open)
+    - **500**: Unexpected server error
+    
+    All responses include a `request_id` for debugging.
+    """,
     version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
@@ -98,8 +124,9 @@ def cities():
 
 @app.get("/predict")
 def predict_endpoint(
-    lat: float = Query(..., ge=-90, le=90, description="Latitude"),
-    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    request: Request,
+    lat: float = Query(..., ge=-90, le=90, description="Latitude (-90 to 90)"),
+    lon: float = Query(..., ge=-180, le=180, description="Longitude (-180 to 180)"),
     city: str = Query("api", description="Display label for the location"),
 ):
     """
@@ -107,34 +134,145 @@ def predict_endpoint(
 
     Returns the same payload the dashboard renders: current AQI,
     +24h/+48h/+72h forecast, model provenance, feature vector.
+    
+    All responses include a `request_id` for debugging. If status is "degraded",
+    the prediction uses cached data (when live API is unavailable).
     """
+    # Generate unique request ID for tracing
+    request_id = str(uuid.uuid4())[:8]
+    start_time = datetime.now(timezone.utc)
+    
     try:
-        result = predict(lat, lon, city=city)
-    except SystemExit as e:
-        # No production model in the registry.
-        raise HTTPException(
-            status_code=503,
-            detail=f"Model unavailable: {e}",
+        logger.info(
+            f'Prediction request: lat={lat}, lon={lon}, city={city}, request_id={request_id}'
         )
-    except (RuntimeError, KeyError, ValueError) as e:
-        logger.error(f"/predict failed for ({lat}, {lon}): {e}")
-        raise HTTPException(status_code=502, detail=str(e))
-
-    # Enrich each horizon with its AQI band label + health message —
-    # clients get presentation data without reimplementing EPA bands.
-    for h in ("24", "48", "72"):
-        aqi = result["forecast"][h]
-        result["forecast"][h] = {
-            "aqi": aqi,
-            "category": aqi_category(aqi),
-            "health_message": health_message(aqi),
+        
+        result = predict(lat, lon, city=city)
+        
+        # Calculate latency
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        
+        # Enrich each horizon with its AQI band label + health message —
+        # clients get presentation data without reimplementing EPA bands.
+        for h in ("24", "48", "72"):
+            aqi = result["forecast"][h]
+            result["forecast"][h] = {
+                "aqi": aqi,
+                "category": aqi_category(aqi),
+                "health_message": health_message(aqi),
+            }
+        result["current"] = {
+            "aqi": result["current_aqi"],
+            "category": aqi_category(result["current_aqi"]),
+            "health_message": health_message(result["current_aqi"]),
         }
-    result["current"] = {
-        "aqi": result["current_aqi"],
-        "category": aqi_category(result["current_aqi"]),
-        "health_message": health_message(result["current_aqi"]),
-    }
-    return JSONResponse(content=result)
+        
+        # Add metadata
+        result["request_id"] = request_id
+        result["latency_ms"] = round(latency_ms, 1)
+        
+        log_event(
+            logger, 'prediction_success',
+            request_id=request_id,
+            lat=lat, lon=lon,
+            status=result.get('status', 'ok'),
+            latency_ms=round(latency_ms, 1)
+        )
+        
+        return JSONResponse(content=result)
+    
+    except SystemExit as e:
+        # No production model in the registry
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        
+        log_event(
+            logger, 'prediction_error',
+            level=logging.ERROR,
+            request_id=request_id,
+            error_type='no_model',
+            error=str(e),
+            latency_ms=round(latency_ms, 1)
+        )
+        
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Model service unavailable",
+                "details": "No production model is registered",
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "retry_after": 300
+            }
+        )
+    
+    except RuntimeError as e:
+        # API failure, degraded service, or no cache available
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        error_msg = str(e)
+        
+        # Determine if this is a degraded prediction or complete failure
+        if 'degraded' in error_msg.lower() or 'cached' in error_msg.lower():
+            log_event(
+                logger, 'prediction_degraded',
+                level=logging.WARNING,
+                request_id=request_id,
+                error=error_msg,
+                latency_ms=round(latency_ms, 1)
+            )
+            return JSONResponse(
+                status_code=200,  # Still successful, but degraded
+                content={
+                    "error": "Forecast service temporarily unavailable",
+                    "details": error_msg,
+                    "request_id": request_id,
+                    "status": "degraded",
+                    "timestamp": start_time.isoformat()
+                }
+            )
+        else:
+            log_event(
+                logger, 'prediction_error',
+                level=logging.ERROR,
+                request_id=request_id,
+                error_type='runtime',
+                error=error_msg,
+                latency_ms=round(latency_ms, 1)
+            )
+            return JSONResponse(
+                status_code=503,
+                headers={'Retry-After': '300'},
+                content={
+                    "error": "Forecast service temporarily unavailable",
+                    "details": error_msg,
+                    "request_id": request_id,
+                    "timestamp": start_time.isoformat(),
+                    "retry_after": 300,
+                    "support": f"Contact support with request_id: {request_id}"
+                }
+            )
+    
+    except Exception as e:
+        # Unexpected error
+        latency_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        
+        log_event(
+            logger, 'prediction_error',
+            level=logging.ERROR,
+            request_id=request_id,
+            error_type='unexpected',
+            error=str(e),
+            latency_ms=round(latency_ms, 1)
+        )
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "request_id": request_id,
+                "timestamp": start_time.isoformat(),
+                "support": f"Report this issue with request_id: {request_id}"
+            }
+        )
 
 
 @app.post("/admin/migrate-predictions")
