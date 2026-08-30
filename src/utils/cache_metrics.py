@@ -2,118 +2,130 @@
 cache_metrics.py — Prometheus metrics for cache performance monitoring.
 
 Tracks cache hit/miss rates, cache size, and age of cached data.
-Used by PredictionCache and Streamlit st.cache_data decorators.
+Uses singleton pattern to avoid metric registration conflicts in tests.
 
 Issue #41: Multi-layer caching strategy with observability.
 """
 
 import logging
 
+logger = logging.getLogger(__name__)
+
+# Try to import prometheus, use fallback if not available
 try:
     from prometheus_client import Counter, Gauge, Histogram, CollectorRegistry, REGISTRY
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
-    # Fallback: create dummy classes (no-op when prometheus not installed)
-    class Counter:
-        def __init__(self, *args, **kwargs): pass
-        def labels(self, **kwargs): return self
-        def inc(self, *args): pass
+
+# Dummy classes for when prometheus is not available
+class DummyCounter:
+    def __init__(self, *args, **kwargs): pass
+    def labels(self, **kwargs): return self
+    def inc(self, *args): pass
+
+class DummyGauge:
+    def __init__(self, *args, **kwargs): pass
+    def labels(self, **kwargs): return self
+    def set(self, val): pass
+
+class DummyHistogram:
+    def __init__(self, *args, **kwargs): pass
+    def labels(self, **kwargs): return self
+    def observe(self, val): pass
+
+
+# Global metrics registry (singleton, created once)
+_GLOBAL_METRICS = None
+
+def _get_or_create_metrics():
+    """Get or create global metrics (idempotent)."""
+    global _GLOBAL_METRICS
     
-    class Gauge:
-        def __init__(self, *args, **kwargs): pass
-        def labels(self, **kwargs): return self
-        def set(self, val): pass
+    if _GLOBAL_METRICS is not None:
+        return _GLOBAL_METRICS
     
-    class Histogram:
-        def __init__(self, *args, **kwargs): pass
-        def labels(self, **kwargs): return self
-        def observe(self, val): pass
-
-logger = logging.getLogger(__name__)
-
-
-# Global metrics (registered once, reused by all cache instances)
-_METRICS_INITIALIZED = False
-_HITS = None
-_MISSES = None
-_EVICTIONS = None
-_SIZE_BYTES = None
-_ENTRIES = None
-_AGE_HOURS = None
-
-
-def _init_metrics():
-    """Initialize global metrics (idempotent, called once)."""
-    global _METRICS_INITIALIZED, _HITS, _MISSES, _EVICTIONS, _SIZE_BYTES, _ENTRIES, _AGE_HOURS
-    
-    if _METRICS_INITIALIZED:
-        return
+    # Create new metrics dict
+    metrics = {
+        'hits': None,
+        'misses': None,
+        'evictions': None,
+        'size_bytes': None,
+        'entries': None,
+        'age_hours': None,
+    }
     
     if not PROMETHEUS_AVAILABLE:
-        _METRICS_INITIALIZED = True
-        return
+        # Use dummy classes
+        metrics['hits'] = DummyCounter()
+        metrics['misses'] = DummyCounter()
+        metrics['evictions'] = DummyCounter()
+        metrics['size_bytes'] = DummyGauge()
+        metrics['entries'] = DummyGauge()
+        metrics['age_hours'] = DummyHistogram()
+        _GLOBAL_METRICS = metrics
+        return metrics
     
+    # Try to register real Prometheus metrics
     try:
-        # Check if metrics already registered (e.g., in pytest fixtures)
-        _HITS = Counter(
+        metrics['hits'] = Counter(
             'cache_hits_total',
             'Total cache hits',
             ['cache_name'],
             registry=REGISTRY
         )
-        
-        _MISSES = Counter(
+        metrics['misses'] = Counter(
             'cache_misses_total',
             'Total cache misses',
             ['cache_name'],
             registry=REGISTRY
         )
-        
-        _EVICTIONS = Counter(
+        metrics['evictions'] = Counter(
             'cache_evictions_total',
             'Total cache evictions (overflow cleanup)',
             ['cache_name'],
             registry=REGISTRY
         )
-        
-        _SIZE_BYTES = Gauge(
+        metrics['size_bytes'] = Gauge(
             'cache_size_bytes',
             'Current cache size in bytes',
             ['cache_name'],
             registry=REGISTRY
         )
-        
-        _ENTRIES = Gauge(
+        metrics['entries'] = Gauge(
             'cache_entries',
             'Number of entries in cache',
             ['cache_name'],
             registry=REGISTRY
         )
-        
-        _AGE_HOURS = Histogram(
+        metrics['age_hours'] = Histogram(
             'cache_age_hours',
             'Age of cached data in hours at retrieval',
             ['cache_name'],
             buckets=(0.1, 0.5, 1.0, 6.0, 24.0, float('inf')),
             registry=REGISTRY
         )
-        
-        _METRICS_INITIALIZED = True
         logger.debug('Prometheus cache metrics initialized')
     
     except Exception as e:
-        # If registration fails (e.g., duplicate metric), just log it
-        # and mark as initialized so we don't crash the cache
-        logger.warning(f'Failed to initialize Prometheus metrics: {e}')
-        _METRICS_INITIALIZED = True
+        # Registration failed (e.g., duplicate metric in test) → use dummies
+        logger.warning(f'Prometheus metrics registration failed: {e}; using dummy metrics')
+        metrics['hits'] = DummyCounter()
+        metrics['misses'] = DummyCounter()
+        metrics['evictions'] = DummyCounter()
+        metrics['size_bytes'] = DummyGauge()
+        metrics['entries'] = DummyGauge()
+        metrics['age_hours'] = DummyHistogram()
+    
+    _GLOBAL_METRICS = metrics
+    return metrics
 
 
 class CacheMetrics:
     """Prometheus metrics for cache performance.
     
-    Uses global metric instances (registered once) to avoid
-    DuplicateTimeseries errors in tests.
+    Uses global singleton metrics to avoid duplicate registration errors.
+    Falls back to dummy metrics if prometheus-client is unavailable.
     """
     
     def __init__(self, cache_name: str):
@@ -121,23 +133,23 @@ class CacheMetrics:
         Initialize metrics for a cache instance.
         
         Args:
-            cache_name: Name of the cache (e.g., 'prediction_cache', 'forecast_cache')
+            cache_name: Name of the cache (e.g., 'prediction_cache')
         """
-        _init_metrics()
         self.cache_name = cache_name
         
+        # Get or create global metrics
+        self._metrics = _get_or_create_metrics()
+        
         # Reference global metrics
-        self.hits = _HITS
-        self.misses = _MISSES
-        self.evictions = _EVICTIONS
-        self.size_bytes = _SIZE_BYTES
-        self.entries = _ENTRIES
-        self.age_hours = _AGE_HOURS
+        self.hits = self._metrics['hits']
+        self.misses = self._metrics['misses']
+        self.evictions = self._metrics['evictions']
+        self.size_bytes = self._metrics['size_bytes']
+        self.entries = self._metrics['entries']
+        self.age_hours = self._metrics['age_hours']
     
     def record_hit(self, age_hours: float = 0):
         """Record a cache hit."""
-        if self.hits is None:
-            return  # prometheus-client not available
         try:
             self.hits.labels(cache_name=self.cache_name).inc()
             if age_hours > 0:
@@ -147,8 +159,6 @@ class CacheMetrics:
     
     def record_miss(self):
         """Record a cache miss."""
-        if self.misses is None:
-            return  # prometheus-client not available
         try:
             self.misses.labels(cache_name=self.cache_name).inc()
         except Exception as e:
@@ -156,8 +166,6 @@ class CacheMetrics:
     
     def record_eviction(self):
         """Record a cache eviction (overflow cleanup)."""
-        if self.evictions is None:
-            return  # prometheus-client not available
         try:
             self.evictions.labels(cache_name=self.cache_name).inc()
         except Exception as e:
@@ -165,8 +173,6 @@ class CacheMetrics:
     
     def set_size(self, size_bytes: int, num_entries: int):
         """Update cache size metrics."""
-        if self.size_bytes is None:
-            return  # prometheus-client not available
         try:
             self.size_bytes.labels(cache_name=self.cache_name).set(size_bytes)
             self.entries.labels(cache_name=self.cache_name).set(num_entries)
@@ -175,16 +181,14 @@ class CacheMetrics:
     
     def hit_rate(self) -> float:
         """Calculate cache hit rate (hits / total requests)."""
-        if self.hits is None:
-            return 0.0  # prometheus-client not available
         try:
-            # Try to get internal counter values
+            # Try to get internal counter values for hit rate calculation
             hits_val = getattr(self.hits.labels(cache_name=self.cache_name), '_value', None)
             misses_val = getattr(self.misses.labels(cache_name=self.cache_name), '_value', None)
             
             if hits_val and misses_val:
-                hits = hits_val.get()
-                misses = misses_val.get()
+                hits = hits_val.get() if callable(getattr(hits_val, 'get', None)) else 0
+                misses = misses_val.get() if callable(getattr(misses_val, 'get', None)) else 0
                 total = hits + misses
                 return hits / total if total > 0 else 0.0
         except Exception:
