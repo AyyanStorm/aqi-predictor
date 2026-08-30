@@ -29,6 +29,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from src.config import CITIES
 from src.inference.predict import predict
@@ -36,6 +37,7 @@ from src.tracking.store import ParquetPredictionStore, HopsworksPredictionStore
 from src.training.model_registry import ModelRegistry
 from src.utils.aqi_utils import aqi_category, health_message
 from src.utils.logger import get_logger, log_event
+from src.utils.rate_limiter import limiter, log_rate_limit_exceeded
 
 logger = get_logger(__name__)
 
@@ -54,6 +56,13 @@ app = FastAPI(
     - **Explainability**: SHAP-based feature importance for each prediction
     - **Graceful Degradation**: Returns cached predictions if API unavailable
     
+    ## Rate Limits (Issue #40)
+    - **/predict**: 30 requests per minute per IP
+    - **/health, /cities**: 60 requests per minute per IP
+    - **Default**: 200 requests per hour per IP
+    
+    Exceeding rate limits returns HTTP 429 with Retry-After header.
+    
     ## Usage Example
     ```bash
     curl 'https://api.example.com/predict?lat=24.86&lon=67.01&city=Karachi'
@@ -61,6 +70,7 @@ app = FastAPI(
     
     ## Error Handling
     - **400**: Invalid request (bad coordinates, missing parameters)
+    - **429**: Rate limit exceeded (too many requests from your IP)
     - **503**: Forecast service temporarily unavailable (circuit breaker open)
     - **500**: Unexpected server error
     
@@ -70,6 +80,30 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Attach limiter to app for slowapi
+app.state.limiter = limiter
+
+# Custom exception handler for rate limit exceeded
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    """Handle rate limit exceeded errors with proper 429 response."""
+    client_ip = request.client.host if request.client else "unknown"
+    endpoint = request.url.path
+    
+    # Log the rate limit violation
+    log_rate_limit_exceeded(request, client_ip, endpoint)
+    
+    return JSONResponse(
+        status_code=429,
+        headers={"Retry-After": "60"},
+        content={
+            "error": "Rate limit exceeded",
+            "details": "Too many requests from your IP. Please try again later.",
+            "retry_after": 60,
+            "limit": str(exc.detail),
+        },
+    )
 
 
 @app.middleware("http")
@@ -103,8 +137,12 @@ async def request_logging(request, call_next):
 
 
 @app.get("/health")
-def health():
-    """Service status + whether a production model is registered."""
+@limiter.limit("60/minute")
+def health(request: Request):
+    """Service status + whether a production model is registered.
+    
+    Rate limited to 60 requests per minute per IP.
+    """
     reg = ModelRegistry()
     prod = reg.production_entry()
     return {
@@ -117,12 +155,17 @@ def health():
 
 
 @app.get("/cities")
-def cities():
-    """The 10 training cities (name -> lat/lon)."""
+@limiter.limit("60/minute")
+def cities(request: Request):
+    """The 10 training cities (name -> lat/lon).
+    
+    Rate limited to 60 requests per minute per IP.
+    """
     return {"cities": CITIES}
 
 
 @app.get("/predict")
+@limiter.limit("30/minute")
 def predict_endpoint(
     request: Request,
     lat: float = Query(..., ge=-90, le=90, description="Latitude (-90 to 90)"),
@@ -134,6 +177,8 @@ def predict_endpoint(
 
     Returns the same payload the dashboard renders: current AQI,
     +24h/+48h/+72h forecast, model provenance, feature vector.
+    
+    **Rate Limit:** 30 requests per minute per IP (Issue #40)
     
     All responses include a `request_id` for debugging. If status is "degraded",
     the prediction uses cached data (when live API is unavailable).
