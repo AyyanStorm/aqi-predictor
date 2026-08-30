@@ -62,6 +62,8 @@ nav = st.navigation(list(pages.values()), position="hidden")
 
 # Sticky glass navbar (brand + nav + location/settings/refresh) renders
 # above every page. The active page gets the primary gradient treatment.
-render_navbar(pages, active_title=nav.title)
+# Get active page title from session state or default to Dashboard
+active_title = st.session_state.get("_page_title", "Dashboard")
+render_navbar(pages, active_title=active_title)
 
 nav.run()
