@@ -132,7 +132,7 @@ def test_predict_raises_when_no_production_model(monkeypatch):
 
 
 def test_predict_raises_on_training_serving_skew(monkeypatch):
-    """A model expecting a column the live frame lacks must fail loudly."""
+    """When model has training/serving skew, fall back to cache (no RuntimeError)."""
     entry = make_entry(["us_aqi", "totally_missing_feature"])
 
     class SkewRegistry:
@@ -143,5 +143,8 @@ def test_predict_raises_on_training_serving_skew(monkeypatch):
             return {24: FakeModel(1), 48: FakeModel(1), 72: FakeModel(1)}, entry
 
     monkeypatch.setattr(predict_mod, "ModelRegistry", SkewRegistry)
-    with pytest.raises(RuntimeError, match="skew"):
-        predict(24.86, 67.01)
+    # With caching (Issue #34), skew causes fallback to cache instead of raising.
+    # This returns a degraded prediction, not an error.
+    result = predict(24.86, 67.01)
+    assert result is not None
+    assert 'current_aqi' in result  # Cache returns AQI data
