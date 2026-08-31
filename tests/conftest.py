@@ -14,56 +14,59 @@ def reset_rate_limiter():
     """
     Reset the rate limiter's in-memory storage before/after each test.
     
-    This is CRITICAL because slowapi's default in-memory storage maintains
-    request counts across test functions. Without resetting, one test that
-    exceeds a limit will cause subsequent tests to fail prematurely.
+    This is CRITICAL because slowapi's default in-memory storage (MemoryStorage)
+    maintains request counts across test functions. Without resetting, one test
+    that exceeds a limit will cause subsequent tests to fail prematurely.
+    
+    slowapi.Limiter uses limiter._storage (MemoryStorage object).
+    MemoryStorage internally uses .storage (Counter object from collections).
+    We must clear this Counter before each test.
     
     autouse=True means this fixture runs automatically for every test.
+    """
+    _clear_test_rate_limiter_storage()
+    yield
+    _clear_test_rate_limiter_storage()
+
+
+def _clear_test_rate_limiter_storage():
+    """Helper to clear the rate limiter storage.
+    
+    Handles both dict and Counter objects properly.
+    Clears the limiter's in-memory Counter to prevent test pollution.
     """
     try:
         from src.utils.rate_limiter import limiter
         
-        # Clear the storage before the test
         if hasattr(limiter, '_storage') and limiter._storage is not None:
-            # slowapi 0.1.9 uses _storage internally
-            if isinstance(limiter._storage, dict):
-                limiter._storage.clear()
-            elif hasattr(limiter._storage, 'storage') and isinstance(limiter._storage.storage, dict):
-                limiter._storage.storage.clear()
-            elif hasattr(limiter._storage, 'clear'):
-                limiter._storage.clear()
-        
-        # Also try the public storage attribute
-        if hasattr(limiter, 'storage') and limiter.storage is not None:
-            if isinstance(limiter.storage, dict):
-                limiter.storage.clear()
-            elif hasattr(limiter.storage, 'clear'):
-                limiter.storage.clear()
+            memory_storage = limiter._storage
+            # MemoryStorage has a .storage attribute (usually a Counter)
+            if hasattr(memory_storage, 'storage'):
+                storage_obj = memory_storage.storage
+                # Completely clear it
+                if hasattr(storage_obj, 'clear'):
+                    storage_obj.clear()
+                elif hasattr(storage_obj, 'popitem'):
+                    # Counter/dict fallback
+                    try:
+                        while storage_obj:
+                            storage_obj.popitem()
+                    except (KeyError, TypeError):
+                        pass
+                else:
+                    # Last resort: iterate and delete
+                    try:
+                        for key in list(storage_obj.keys()):
+                            del storage_obj[key]
+                    except (AttributeError, TypeError):
+                        pass
     except ImportError:
         # slowapi not installed yet (might happen during test collection)
         pass
-    
-    yield
-    
-    # Clear again after the test for good measure
-    try:
-        from src.utils.rate_limiter import limiter
-        
-        if hasattr(limiter, '_storage') and limiter._storage is not None:
-            if isinstance(limiter._storage, dict):
-                limiter._storage.clear()
-            elif hasattr(limiter._storage, 'storage') and isinstance(limiter._storage.storage, dict):
-                limiter._storage.storage.clear()
-            elif hasattr(limiter._storage, 'clear'):
-                limiter._storage.clear()
-        
-        if hasattr(limiter, 'storage') and limiter.storage is not None:
-            if isinstance(limiter.storage, dict):
-                limiter.storage.clear()
-            elif hasattr(limiter.storage, 'clear'):
-                limiter.storage.clear()
-    except ImportError:
-        pass
+    except Exception as e:
+        # Silently ignore any clearing errors but log them
+        import sys
+        print(f"Warning: Failed to clear rate limiter storage: {e}", file=sys.stderr)
 
 
 @pytest.fixture

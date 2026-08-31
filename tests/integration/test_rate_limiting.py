@@ -4,19 +4,59 @@ test_rate_limiting.py — Integration tests for API rate limiting (Issue #40).
 Tests that rate limiting is correctly enforced per endpoint with proper
 429 responses, Retry-After headers, and per-IP isolation.
 
-CRITICAL: Each test uses a fresh TestClient to isolate rate limit state.
-The in-memory rate limiter persists state across requests, so each test
-class must create its own client instance to get a clean slate.
+CRITICAL: Each test class must reset the limiter's in-memory storage.
+The slowapi Limiter stores state in memory, persisting across test instances.
+We reset it by clearing the storage dict before each test class.
 """
 
 import pytest
 from fastapi.testclient import TestClient
 from app.api import app
+from src.utils.rate_limiter import limiter
+
+
+def _aggressively_clear_limiter():
+    """Aggressively clear rate limiter storage.
+    
+    Tries multiple approaches to ensure the Counter is completely empty.
+    This is critical when running with 264+ other tests that pollute storage.
+    """
+    try:
+        if hasattr(limiter, '_storage') and limiter._storage:
+            storage_obj = limiter._storage.storage
+            
+            # Approach 1: Direct clear()
+            if hasattr(storage_obj, 'clear'):
+                storage_obj.clear()
+            
+            # Approach 2: popitem until empty
+            try:
+                while len(storage_obj) > 0:
+                    if hasattr(storage_obj, 'popitem'):
+                        storage_obj.popitem()
+                    else:
+                        key = next(iter(storage_obj))
+                        del storage_obj[key]
+            except (StopIteration, KeyError, RuntimeError):
+                pass
+            
+            # Verify it's actually empty
+            if len(storage_obj) > 0:
+                # Last resort: rebuild with empty dict
+                limiter._storage.storage = {}
+    except Exception:
+        pass
 
 
 @pytest.fixture
 def fresh_client():
-    """Create a fresh TestClient for each test (isolates rate limit state)."""
+    """Create a fresh TestClient for each test.
+    
+    The conftest.py reset_rate_limiter fixture clears storage before each test,
+    but we also aggressively clear here to handle the 264+ test suite case.
+    """
+    # Extra aggressive clear for per-IP isolation test
+    _aggressively_clear_limiter()
     return TestClient(app)
 
 
@@ -143,28 +183,43 @@ class TestRateLimitPerIP:
         """
         Rate limits are applied per IP.
         Different IPs should have separate limits.
+        
+        Uses unique IP addresses to avoid pollution from other tests.
         """
-        # Make requests from "IP 1" (no special header)
+        from src.utils.rate_limiter import limiter
+        import uuid
+        
+        # CRITICAL: Ensure storage is completely empty BEFORE test starts
+        _aggressively_clear_limiter()
+        
+        # Generate unique IPs for this test to avoid pollution from 264+ test suite
+        # This ensures we're testing per-IP isolation in isolation
+        unique_ip_1 = f"10.0.{uuid.uuid4().hex[:4]}.1"
+        unique_ip_2 = f"10.0.{uuid.uuid4().hex[:4]}.1"
+        
+        # Make 31 requests from IP 1 (via X-Forwarded-For header)
         for i in range(31):
             response = fresh_client.get(
                 '/predict?lat=24.86&lon=67.01',
-                headers={}
+                headers={'X-Forwarded-For': unique_ip_1}
             )
         
-        # Last one should be rate limited
+        # Last one should be rate limited (31st request exceeds 30/minute)
         assert response.status_code == 429, \
-            f"Expected 429 after 31 requests, got {response.status_code}"
+            f"Expected 429 for IP1 after 31 requests, got {response.status_code}"
         
-        # Now make request from "IP 2" (different forwarded IP)
-        # This should succeed since it's a different IP
+        # Now make request from IP 2 (different IP, different X-Forwarded-For)
+        # This should succeed since it's a completely different IP with no prior requests
         response = fresh_client.get(
             '/predict?lat=24.86&lon=67.01',
-            headers={'X-Forwarded-For': '192.168.1.100'}
+            headers={'X-Forwarded-For': unique_ip_2}
         )
         
         # Should succeed (not rate limited for this "new" IP)
+        # Using unique IPs ensures zero pollution from other test runs
         assert response.status_code in [200, 503, 502], \
-            f"Expected 200/503/502 for new IP, got {response.status_code}"
+            f"Expected 200/503/502 for IP2 (first request), got {response.status_code}. "\
+            f"IP1: {unique_ip_1}, IP2: {unique_ip_2}"
 
 
 class TestRateLimitExceptionHandler:

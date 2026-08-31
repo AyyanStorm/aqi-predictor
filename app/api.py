@@ -28,8 +28,9 @@ import os
 import uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from src.config import CITIES
 from src.inference.predict import predict
@@ -38,6 +39,7 @@ from src.training.model_registry import ModelRegistry
 from src.utils.aqi_utils import aqi_category, health_message
 from src.utils.logger import get_logger, log_event
 from src.utils.rate_limiter import limiter, log_rate_limit_exceeded
+from src.utils.metrics import update_model_metrics
 
 logger = get_logger(__name__)
 
@@ -162,6 +164,31 @@ def cities(request: Request):
     Rate limited to 60 requests per minute per IP.
     """
     return {"cities": CITIES}
+
+
+@app.get("/metrics")
+def metrics():
+    """
+    Prometheus metrics endpoint (Issue #35).
+    
+    Exposes all tracked metrics:
+    - Prediction latency and errors
+    - Model performance (RMSE, version, age)
+    - API request count and latency
+    - Feature pipeline status
+    - Cache hit/miss rates
+    """
+    # Update model metrics before returning (ensure fresh data)
+    try:
+        update_model_metrics()
+    except Exception:
+        # Silently continue if update fails - /metrics should always work
+        pass
+    
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST
+    )
 
 
 @app.get("/predict")

@@ -1,0 +1,199 @@
+# prometheus-rules.yml — Alerting rules for AQI Predictor (Issue #35)
+#
+# Detects:
+# - Model degradation (RMSE increases)
+# - Data staleness (feature store not updated)
+# - API errors (high 5xx rate)
+# - Prediction failures
+# - Feature pipeline failures
+
+groups:
+  - name: aqi_alerts
+    interval: 1m
+    rules:
+      # ========================================================================
+      # MODEL DEGRADATION ALERTS
+      # ========================================================================
+      
+      - alert: ModelRMSEDegraded
+        expr: aqi_model_rmse_production > 25
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Production model RMSE degraded ({{ $value }})"
+          description: |
+            Production model RMSE exceeded threshold of 25.
+            Current RMSE: {{ $value }}
+            Target: < 20
+            Action: Investigate recent training data quality or retrain model.
+      
+      - alert: ModelAgeExceeded
+        expr: aqi_model_age_days > 30
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Production model is {{ $value }} days old"
+          description: |
+            Production model has not been retrained in {{ $value }} days.
+            Recommendation: Run daily training pipeline to keep model fresh.
+            Action: Check if automated training is running.
+      
+      # ========================================================================
+      # DATA FRESHNESS ALERTS
+      # ========================================================================
+      
+      - alert: FeatureStoreStale
+        expr: aqi_feature_store_age_hours > 6
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Feature store not updated in {{ $value }}h"
+          description: |
+            Feature store was last updated {{ $value }} hours ago.
+            This indicates the hourly ingestion pipeline may have failed.
+            Action: Check feature pipeline logs and restart if needed.
+      
+      - alert: FeatureStoreEmpty
+        expr: aqi_feature_store_rows_total == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Feature store is empty"
+          description: |
+            No rows in feature store. Predictions will fail.
+            Action: Immediately check data ingestion pipeline.
+      
+      # ========================================================================
+      # API ERROR ALERTS
+      # ========================================================================
+      
+      - alert: HighAPIErrorRate
+        expr: |
+          (
+            increase(aqi_api_requests_total{status_code=~"5.."}[5m])
+            /
+            increase(aqi_api_requests_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API error rate > 5% (last 5m)"
+          description: |
+            API is returning 5xx errors at > 5% rate.
+            This indicates the service may be degrading.
+            Action: Check API logs and service health.
+      
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(aqi_api_latency_seconds_bucket[5m])) > 2.0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API P95 latency > 2.0s"
+          description: |
+            API p95 latency exceeded 2.0 seconds: {{ $value }}s
+            Action: Investigate slow endpoints (/predict likely culprit).
+      
+      # ========================================================================
+      # PREDICTION FAILURE ALERTS
+      # ========================================================================
+      
+      - alert: PredictionErrors
+        expr: increase(aqi_prediction_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: ">10 predictions failed in last 5m"
+          description: |
+            Prediction errors: {{ $value }} errors in last 5 minutes.
+            Most likely causes:
+            - Open-Meteo API temporarily down (circuit breaker opened)
+            - No production model registered
+            - Feature engineering failure
+            Action: Check prediction logs and API status.
+      
+      - alert: HighDegradedPredictionRate
+        expr: |
+          (
+            increase(aqi_predictions_total{status="degraded"}[5m])
+            /
+            increase(aqi_predictions_total[5m])
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ">10% predictions using stale cache"
+          description: |
+            Over 10% of predictions are using cached data.
+            This indicates the forecast API is unreliable.
+            Action: Check Open-Meteo API status and circuit breaker.
+      
+      # ========================================================================
+      # PIPELINE FAILURE ALERTS
+      # ========================================================================
+      
+      - alert: FeaturePipelineFailed
+        expr: increase(aqi_feature_pipeline_errors_total[1h]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Feature pipeline encountered {{ $value }} error(s)"
+          description: |
+            Hourly feature pipeline has failed {{ $value }} time(s).
+            Action: Check feature pipeline logs and restart if needed.
+      
+      - alert: FeaturePipelineSlowRuntime
+        expr: histogram_quantile(0.95, rate(aqi_feature_pipeline_runtime_seconds_bucket[5m])) > 120
+        for: 3m
+        labels:
+          severity: info
+        annotations:
+          summary: "Feature pipeline P95 runtime > 2m"
+          description: |
+            Feature pipeline is running slow: {{ $value }}s
+            This may impact feature freshness.
+            Action: Investigate pipeline bottlenecks (API calls, DB operations).
+      
+      - alert: TrainingPipelineFailed
+        expr: increase(aqi_training_pipeline_errors_total[24h]) > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Training pipeline failed"
+          description: |
+            Daily training pipeline encountered an error.
+            Action: Check training logs and retry if needed.
+      
+      # ========================================================================
+      # CACHE ALERTS
+      # ========================================================================
+      
+      - alert: HighCacheMissRate
+        expr: |
+          (
+            increase(aqi_cache_misses_total[5m])
+            /
+            (
+              increase(aqi_cache_misses_total[5m])
+              +
+              increase(aqi_cache_hits_total[5m])
+            )
+          ) > 0.2
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: ">20% cache miss rate"
+          description: |
+            Cache miss rate is high: {{ $value | humanizePercentage }}
+            This is normal during degradation (API down).
+            Action: Verify feature store freshness and API status.

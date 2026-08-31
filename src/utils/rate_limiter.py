@@ -16,9 +16,34 @@ from slowapi.errors import RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
+
+def get_remote_address_with_forwarded(request):
+    """
+    Enhanced IP extraction that checks X-Forwarded-For header.
+    
+    This allows rate limiting to work correctly when behind a proxy
+    (like Render, Cloudflare, or load balancers) and in testing with
+    the X-Forwarded-For header.
+    
+    Args:
+        request: FastAPI Request object
+    
+    Returns:
+        Client IP address (string)
+    """
+    # Check for X-Forwarded-For header first (proxies, load balancers, tests)
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        # Take the first IP if there are multiple
+        return forwarded.split(',')[0].strip()
+    
+    # Fall back to direct connection IP
+    return get_remote_address(request)
+
+
 # Initialize limiter with IP-based rate limiting
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_remote_address_with_forwarded,
     default_limits=["200 per hour"],
     storage_uri=None  # Use in-memory storage (good for single-instance apps)
 )
