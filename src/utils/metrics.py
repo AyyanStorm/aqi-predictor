@@ -152,6 +152,39 @@ cache_size_bytes = Gauge(
 )
 
 # ============================================================================
+# DATA QUALITY METRICS (Issue #37)
+# ============================================================================
+
+data_quality_errors = Counter(
+    'aqi_data_quality_errors_total',
+    'Total data quality validation errors',
+    labelnames=['error_type', 'stage']  # stage: ingest, training, inference
+)
+
+data_quality_warnings = Counter(
+    'aqi_data_quality_warnings_total',
+    'Total data quality validation warnings',
+    labelnames=['warning_type', 'stage']
+)
+
+data_quality_checks_passed = Counter(
+    'aqi_data_quality_checks_passed_total',
+    'Total successful data quality validations',
+    labelnames=['stage']  # stage: ingest, training, inference
+)
+
+data_null_percentage = Gauge(
+    'aqi_data_null_percentage',
+    'Percentage of null values by column',
+    labelnames=['column', 'city']
+)
+
+data_freshness_hours = Gauge(
+    'aqi_data_freshness_hours',
+    'Hours since latest data was ingested (lower is fresher)',
+)
+
+# ============================================================================
 # HELPER: Context Manager for Timing
 # ============================================================================
 
