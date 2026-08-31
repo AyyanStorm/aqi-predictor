@@ -12,47 +12,15 @@ We reset it by clearing the storage dict before each test class.
 import pytest
 from fastapi.testclient import TestClient
 from app.api import app
-from src.utils.rate_limiter import limiter
-
-
-def _clear_limiter_storage():
-    """Helper to clear slowapi's in-memory storage.
-    
-    slowapi stores request counts in an in-memory dict. We access and clear it.
-    This prevents rate limit state from one test bleeding into the next.
-    """
-    try:
-        if hasattr(limiter, 'storage'):
-            storage = limiter.storage
-            # MemoryStorage wraps a dict in .storage
-            if hasattr(storage, 'storage'):
-                storage.storage.clear()
-            elif hasattr(storage, 'clear'):
-                storage.clear()
-            elif isinstance(storage, dict):
-                storage.clear()
-    except Exception:
-        pass  # Silently continue if clearing fails
-
-
-@pytest.fixture(autouse=True)
-def reset_limiter():
-    """Reset rate limiter storage before and after each test.
-    
-    This is critical: slowapi's in-memory storage persists across test instances.
-    Without resetting, rate limit state from one test bleeds into the next.
-    """
-    _clear_limiter_storage()
-    yield
-    _clear_limiter_storage()
 
 
 @pytest.fixture
 def fresh_client():
     """Create a fresh TestClient for each test.
     
-    The reset_limiter fixture handles clearing the limiter state,
-    so we just need a new client instance here.
+    The reset_rate_limiter fixture (from conftest.py) handles clearing
+    the limiter state automatically for every test, so we just need
+    a new client instance here.
     """
     return TestClient(app)
 
