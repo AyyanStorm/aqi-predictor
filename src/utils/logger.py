@@ -1,6 +1,21 @@
 import json
 import logging
 import os
+from typing import Optional
+
+# Import at runtime to avoid circular imports
+_request_context = None
+
+def _get_request_id() -> str:
+    """Get request ID from context if available."""
+    try:
+        global _request_context
+        if _request_context is None:
+            from src.utils import request_context as _rc
+            _request_context = _rc
+        return _request_context.get_request_id()
+    except Exception:
+        return 'unknown'
 
 
 class _JsonFormatter(logging.Formatter):
@@ -18,6 +33,7 @@ class _JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "request_id": _get_request_id(),
         }
         fields = getattr(record, "fields", None)
         if fields:
@@ -48,12 +64,30 @@ def get_logger(name, structured=None):
         else:
             handler.setFormatter(
                 logging.Formatter(
-                    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+                    "%(asctime)s | %(levelname)s | %(name)s | [%(request_id)s] %(message)s",
+                    defaults={'request_id': 'unknown'}
                 )
             )
         logger.addHandler(handler)
 
     return logger
+
+
+class RequestIDFilter(logging.Filter):
+    """Logging filter that adds request ID to all log records."""
+
+    def filter(self, record):
+        """Add request ID to log record.
+        
+        Args:
+            record: Log record to enhance
+            
+        Returns:
+            bool: True to allow log (always)
+        """
+        if not hasattr(record, 'request_id'):
+            record.request_id = _get_request_id()
+        return True
 
 
 def log_event(logger, event, level=logging.INFO, **fields):
