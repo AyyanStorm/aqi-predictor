@@ -1,0 +1,42 @@
+# prometheus.yml — Prometheus configuration for AQI Predictor (Issue #35)
+#
+# Scrapes metrics from:
+# - FastAPI API (:8000/metrics)
+# - Streamlit dashboard (:8501/metrics, if exposed)
+
+global:
+  scrape_interval: 30s      # Scrape every 30 seconds
+  evaluation_interval: 30s  # Evaluate rules every 30 seconds
+  external_labels:
+    monitor: 'aqi-predictor'
+
+# Alertmanager configuration (for sending alerts)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load rules (alerting rules)
+rule_files:
+  - 'prometheus-rules.yml'
+
+scrape_configs:
+  # FastAPI API endpoints (main app)
+  - job_name: 'aqi-api'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    
+  # Streamlit dashboard (if metrics are exposed)
+  - job_name: 'aqi-dashboard'
+    static_configs:
+      - targets: ['localhost:8501']
+    metrics_path: '/metrics'
+    scrape_interval: 60s  # Less frequent for dashboard
+    relabel_configs:
+      # Mark source for easier filtering in dashboards
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'dashboard'

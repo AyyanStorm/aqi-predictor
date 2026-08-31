@@ -28,8 +28,9 @@ import os
 import uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi.errors import RateLimitExceeded
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from src.config import CITIES
 from src.inference.predict import predict
@@ -38,6 +39,9 @@ from src.training.model_registry import ModelRegistry
 from src.utils.aqi_utils import aqi_category, health_message
 from src.utils.logger import get_logger, log_event
 from src.utils.rate_limiter import limiter, log_rate_limit_exceeded
+from src.utils.metrics import (
+    api_requests, api_latency, record_latency, update_model_metrics
+)
 
 logger = get_logger(__name__)
 
@@ -108,12 +112,12 @@ async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded)
 
 @app.middleware("http")
 async def request_logging(request, call_next):
-    """Structured access log for every request (Day 24 observability).
+    """Structured access log + metrics for every request (Day 24 observability, Issue #35).
 
     Logs method, path, status and duration_ms as one searchable line —
     the minimum needed to answer "is the API healthy / who is calling
-    it / where is the latency". The event name is http_request so a log
-    drain or Render's log search can filter on it.
+    it / where is the latency". Also records request latency and count
+    to Prometheus metrics.
     """
     import time
 
@@ -121,18 +125,38 @@ async def request_logging(request, call_next):
     try:
         response = await call_next(request)
     except Exception:
+        duration = time.perf_counter() - start
         log_event(
             logger, "http_request", level=logging.ERROR,
             method=request.method, path=request.url.path,
-            status=500, duration_ms=round((time.perf_counter() - start) * 1000, 1),
+            status=500, duration_ms=round(duration * 1000, 1),
         )
+        # Record error metric
+        api_requests.labels(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=500
+        ).inc()
+        api_latency.labels(endpoint=request.url.path).observe(duration)
         raise
+    
+    duration = time.perf_counter() - start
+    
     log_event(
         logger, "http_request",
         method=request.method, path=request.url.path,
         status=response.status_code,
-        duration_ms=round((time.perf_counter() - start) * 1000, 1),
+        duration_ms=round(duration * 1000, 1),
     )
+    
+    # Record metrics for Prometheus (Issue #35)
+    api_requests.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status_code=response.status_code
+    ).inc()
+    api_latency.labels(endpoint=request.url.path).observe(duration)
+    
     return response
 
 
@@ -162,6 +186,36 @@ def cities(request: Request):
     Rate limited to 60 requests per minute per IP.
     """
     return {"cities": CITIES}
+
+
+@app.get("/metrics")
+def metrics():
+    """
+    Prometheus metrics endpoint (Issue #35).
+    
+    Exposes all tracked metrics:
+    - Prediction latency and errors
+    - Model performance (RMSE, version, age)
+    - API request count and latency
+    - Feature pipeline status
+    - Cache hit/miss rates
+    
+    Scrape this endpoint from Prometheus (typically http://localhost:8000/metrics)
+    
+    Example:
+        curl http://localhost:8000/metrics | head -20
+    """
+    # Update model metrics before returning (ensure fresh data)
+    try:
+        update_model_metrics()
+    except Exception:
+        # Silently continue if update fails - /metrics should always work
+        pass
+    
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST
+    )
 
 
 @app.get("/predict")

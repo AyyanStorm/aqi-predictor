@@ -64,6 +64,10 @@ from src.inference.cache import PredictionCache
 from src.inference.circuit_breaker import CircuitBreaker
 from src.training.model_registry import ModelRegistry
 from src.utils.logger import get_logger, log_event
+from src.utils.metrics import (
+    prediction_latency, prediction_errors, predictions_made,
+    record_latency
+)
 
 logger = get_logger(__name__)
 
@@ -172,14 +176,15 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
         }
     """
     
-    # Try to fetch live forecast
-    try:
-        logger.info(f'Attempting live forecast: lat={latitude}, lon={longitude}')
-        
-        # Protected by circuit breaker
-        df, now_ts = api_breaker.call(
-            fetch_live_frame, latitude, longitude, city=city
-        )
+    # Track prediction latency and record errors
+    with record_latency(prediction_latency, horizon='all', city=city or 'unknown'):
+        try:
+            logger.info(f'Attempting live forecast: lat={latitude}, lon={longitude}')
+            
+            # Protected by circuit breaker
+            df, now_ts = api_breaker.call(
+                fetch_live_frame, latitude, longitude, city=city
+            )
         
         # Build features and run inference
         df = build_features(df)
@@ -228,75 +233,90 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
             raw = float(models[h].predict(X)[0])
             forecast[str(h)] = max(0, round(raw))  # AQI is never negative
         
-        result = {
-            "location": {"lat": latitude, "lon": longitude, "city": city},
-            "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(),
-            "current_aqi": int(round(float(df.loc[now_ts, "us_aqi"]))),
-            "model": {
-                "name": entry["name"],
-                "version": entry["version"],
-                "artifact": entry["artifact"],
-                "mean_rmse": entry["mean_rmse"],
-            },
-            "forecast": forecast,
-            "features": row.round(4).to_dict(),
-            "status": "ok"
-        }
-        
-        # Cache successful prediction
-        cache.set(latitude, longitude, result)
-        
-        logger.info(
-            f"Forecast for ({latitude}, {longitude}) [{city}]: "
-            + ", ".join(f"+{h}h={v}" for h, v in forecast.items())
-        )
-        
-        return result
-    
-    except RuntimeError as e:
-        # API failed or circuit breaker open -> try cache
-        logger.warning(
-            f'Live forecast failed: {e}. Attempting fallback to cache.',
-            extra={'fields': {'lat': latitude, 'lon': longitude}}
-        )
-        
-        cached_data, cache_age_hours = cache.get(latitude, longitude)
-        
-        if cached_data:
-            # Return cached data with degraded status
-            log_event(
-                logger, 'prediction_degraded',
-                level=logging.WARNING,
-                lat=latitude, lon=longitude,
-                cache_age_hours=round(cache_age_hours, 1),
-                reason=str(e)
-            )
-            
-            return {
-                **cached_data,
-                "status": "degraded",
-                "cache_age_hours": round(cache_age_hours, 1),
-                "warning": (
-                    f"Using cached prediction from {cache_age_hours:.1f} hours ago. "
-                    f"Forecast API is temporarily unavailable. "
-                    f"Please try again in a few minutes."
-                )
+            result = {
+                "location": {"lat": latitude, "lon": longitude, "city": city},
+                "fetched_at": pd.Timestamp.now(tz="UTC").isoformat(),
+                "current_aqi": int(round(float(df.loc[now_ts, "us_aqi"]))),
+                "model": {
+                    "name": entry["name"],
+                    "version": entry["version"],
+                    "artifact": entry["artifact"],
+                    "mean_rmse": entry["mean_rmse"],
+                },
+                "forecast": forecast,
+                "features": row.round(4).to_dict(),
+                "status": "ok"
             }
-        else:
-            # No cache available -> fail
-            log_event(
-                logger, 'prediction_failed',
-                level=logging.ERROR,
-                lat=latitude, lon=longitude,
-                error=str(e)
+            
+            # Cache successful prediction
+            cache.set(latitude, longitude, result)
+            
+            # Record success metric
+            predictions_made.labels(status='ok', horizon='all').inc()
+            
+            logger.info(
+                f"Forecast for ({latitude}, {longitude}) [{city}]: "
+                + ", ".join(f"+{h}h={v}" for h, v in forecast.items())
             )
             
-            raise RuntimeError(
-                f"Forecast service unavailable. "
-                f"Error: {e}. "
-                f"No cached prediction available. "
-                f"Please try again in 5 minutes."
+            return result
+        
+        except RuntimeError as e:
+            # API failed or circuit breaker open -> try cache
+            logger.warning(
+                f'Live forecast failed: {e}. Attempting fallback to cache.',
+                extra={'fields': {'lat': latitude, 'lon': longitude}}
             )
+            
+            cached_data, cache_age_hours = cache.get(latitude, longitude)
+            
+            if cached_data:
+                # Return cached data with degraded status
+                predictions_made.labels(status='degraded', horizon='all').inc()
+                
+                log_event(
+                    logger, 'prediction_degraded',
+                    level=logging.WARNING,
+                    lat=latitude, lon=longitude,
+                    cache_age_hours=round(cache_age_hours, 1),
+                    reason=str(e)
+                )
+                
+                return {
+                    **cached_data,
+                    "status": "degraded",
+                    "cache_age_hours": round(cache_age_hours, 1),
+                    "warning": (
+                        f"Using cached prediction from {cache_age_hours:.1f} hours ago. "
+                        f"Forecast API is temporarily unavailable. "
+                        f"Please try again in a few minutes."
+                    )
+                }
+            else:
+                # No cache available -> fail
+                predictions_made.labels(status='error', horizon='all').inc()
+                error_type = type(e).__name__
+                prediction_errors.labels(error_type=error_type, city=city or 'unknown').inc()
+                
+                log_event(
+                    logger, 'prediction_failed',
+                    level=logging.ERROR,
+                    lat=latitude, lon=longitude,
+                    error=str(e)
+                )
+                
+                raise RuntimeError(
+                    f"Forecast service unavailable. "
+                    f"Error: {e}. "
+                    f"No cached prediction available. "
+                    f"Please try again in 5 minutes."
+                )
+        
+        except SystemExit as e:
+            # No model registered
+            predictions_made.labels(status='error', horizon='all').inc()
+            prediction_errors.labels(error_type='no_model', city=city or 'unknown').inc()
+            raise
 
 
 def main():
