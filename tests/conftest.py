@@ -33,6 +33,7 @@ def _clear_test_rate_limiter_storage():
     """Helper to clear the rate limiter storage.
     
     Handles both dict and Counter objects properly.
+    Clears the limiter's in-memory Counter to prevent test pollution.
     """
     try:
         from src.utils.rate_limiter import limiter
@@ -42,11 +43,18 @@ def _clear_test_rate_limiter_storage():
             # MemoryStorage has a .storage attribute (usually a Counter)
             if hasattr(memory_storage, 'storage'):
                 storage_obj = memory_storage.storage
-                # Clear it directly - works for dict, Counter, or any object with .clear()
+                # Completely clear it
                 if hasattr(storage_obj, 'clear'):
                     storage_obj.clear()
+                elif hasattr(storage_obj, 'popitem'):
+                    # Counter/dict fallback
+                    try:
+                        while storage_obj:
+                            storage_obj.popitem()
+                    except (KeyError, TypeError):
+                        pass
                 else:
-                    # Fallback for objects without .clear() method
+                    # Last resort: iterate and delete
                     try:
                         for key in list(storage_obj.keys()):
                             del storage_obj[key]
@@ -55,9 +63,10 @@ def _clear_test_rate_limiter_storage():
     except ImportError:
         # slowapi not installed yet (might happen during test collection)
         pass
-    except Exception:
-        # Silently ignore any clearing errors
-        pass
+    except Exception as e:
+        # Silently ignore any clearing errors but log them
+        import sys
+        print(f"Warning: Failed to clear rate limiter storage: {e}", file=sys.stderr)
 
 
 @pytest.fixture
