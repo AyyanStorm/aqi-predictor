@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/AyyanStorm/aqi-predictor#readme
+    about: Check the README and DOCKER.md for setup and usage
+  - name: Discussions
+    url: https://github.com/AyyanStorm/aqi-predictor/discussions
+    about: Ask questions in GitHub Discussions
