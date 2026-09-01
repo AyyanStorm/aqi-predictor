@@ -1,0 +1,12 @@
+[bandit]
+# Bandit security scanning configuration
+# https://bandit.readthedocs.io/
+
+# Exclude test files
+exclude_dirs = ['tests', '.venv', 'venv', 'build', 'dist']
+
+# Tests to skip (if any known false positives)
+skips = []
+
+# Assertion tests to report
+assert_used = {'MEDIUM': 0, 'HIGH': 0}
