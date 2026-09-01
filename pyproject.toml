@@ -1,0 +1,222 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aqi-predictor"
+version = "0.1.0"
+description = "Live air quality forecast (+24h/+48h/+72h) for any coordinates on Earth"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "AyyanStorm", email = "ayyan.storm@github.com"}
+]
+keywords = ["aqi", "air-quality", "forecast", "pakistan", "machine-learning", "lightgbm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies (from requirements.txt - Issue #44)
+dependencies = [
+    # Data Processing & ML Core
+    "openmeteo-requests==1.7.5",
+    "requests-cache==1.3.3",
+    "retry-requests==2.0.0",
+    "tzdata==2026.3",
+    "pandas==2.3.3",
+    "numpy==2.4.6",
+    "python-dotenv==1.2.2",
+    "pyarrow==24.0.0",
+    "scikit-learn==1.9.0",
+    "lightgbm==4.7.0",
+    "keras==3.15.1",
+    
+    # Web Framework & Serving
+    "streamlit==1.61.1",
+    "fastapi==0.141.1",
+    "uvicorn==0.52.1",
+    "plotly==6.9.0",
+    "streamlit-js-eval==1.0.0",
+    "shap==0.52.0",
+    "pydeck==0.9.3",
+    "prometheus-client==0.26.0",
+    
+    # Data Visualization & Analysis
+    "seaborn==0.13.2",
+    "matplotlib==3.10.0",
+    
+    # Additional utilities
+    "hopsworks==4.0.0",
+]
+
+[project.optional-dependencies]
+# Feature store support (Hopsworks integration)
+feature-store = [
+    "hopsworks==4.0.0",
+]
+
+# Training and model management
+training = [
+    "scikit-learn==1.9.0",
+    "lightgbm==4.7.0",
+    "optuna==4.2.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest==7.4.3",
+    "pytest-cov==4.1.0",
+    "black==23.12.1",
+    "flake8==6.1.0",
+    "mypy==1.7.1",
+    "pre-commit==3.5.0",
+    "ruff==0.1.11",
+]
+
+# Testing dependencies
+test = [
+    "pytest==7.4.3",
+    "pytest-cov==4.1.0",
+    "pytest-asyncio==0.23.2",
+]
+
+# Documentation
+docs = [
+    "sphinx==7.2.6",
+    "sphinx-rtd-theme==2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/AyyanStorm/aqi-predictor"
+Documentation = "https://github.com/AyyanStorm/aqi-predictor#readme"
+Repository = "https://github.com/AyyanStorm/aqi-predictor.git"
+Issues = "https://github.com/AyyanStorm/aqi-predictor/issues"
+Changelog = "https://github.com/AyyanStorm/aqi-predictor/blob/main/CHANGELOG.md"
+
+# Tool configurations
+
+[tool.setuptools]
+packages = ["src", "app", "tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+    "requires_hopsworks: Tests requiring Hopsworks",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Set to true after Issue #64
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "streamlit.*",
+    "plotly.*",
+    "pydeck.*",
+    "hopsworks.*",
+    "optuna.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # Pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = ["E501"]  # line too long (handled by Black)
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_mode = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+
+[tool.coverage.run]
+source = ["src", "app"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "if typing.TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
+precision = 2
+show_missing = true
+
+[tool.coverage.html]
+directory = "htmlcov"
