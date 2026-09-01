@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'AQI Predictor Dashboards'
+    orgId: 1
+    folder: 'AQI Predictor'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
