@@ -1,0 +1,133 @@
+name: Lint & Type Check
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'tests/**'
+      - '*.py'
+      - 'pyproject.toml'
+      - '.github/workflows/lint.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'tests/**'
+      - '*.py'
+      - 'pyproject.toml'
+
+jobs:
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,test]"
+      
+      - name: Check code formatting with Black
+        run: |
+          echo "Checking code formatting with Black..."
+          black --check --line-length=100 src/ app/ tests/
+      
+      - name: Lint with Flake8
+        run: |
+          echo "Linting with Flake8..."
+          flake8 src/ app/ --max-line-length=100 --extend-ignore=E203,W503 --count --statistics
+      
+      - name: Type check with MyPy
+        run: |
+          echo "Type checking with MyPy..."
+          mypy src/ app/ --ignore-missing-imports --warn-unused-ignores
+      
+      - name: Sort imports with isort
+        run: |
+          echo "Checking import sorting with isort..."
+          isort --check-only --profile black --line-length=100 src/ app/ tests/
+      
+      - name: Security scan with Bandit
+        run: |
+          echo "Security scanning with Bandit..."
+          bandit -c .bandit -r src/ app/ -f json -o /tmp/bandit-report.json
+          bandit -c .bandit -r src/ app/
+        continue-on-error: true
+  
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --tb=short
+      
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short
+      
+      - name: Generate coverage report
+        run: |
+          pytest tests/ --cov=src --cov=app --cov-report=xml --cov-report=term-missing
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true
+  
+  summary:
+    name: Lint & Test Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: always()
+    
+    steps:
+      - name: Check job statuses
+        run: |
+          if [[ "${{ needs.lint.result }}" == "failure" ]]; then
+            echo "❌ Linting failed"
+            exit 1
+          fi
+          if [[ "${{ needs.test.result }}" == "failure" ]]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          echo "✅ All checks passed!"
