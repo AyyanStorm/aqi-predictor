@@ -1,0 +1,21 @@
+openmeteo-requests
+requests-cache
+retry-requests
+tzdata
+pandas
+numpy>=2.0,<2.5
+python-dotenv
+pyarrow
+scikit-learn
+lightgbm
+keras
+
+# --- Serving layer (Render deployment) ---
+streamlit
+fastapi
+uvicorn
+plotly
+streamlit-js-eval
+shap
+pydeck
+prometheus-client
