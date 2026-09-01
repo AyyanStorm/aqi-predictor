@@ -51,6 +51,7 @@ dependencies = [
     "shap==0.52.0",
     "pydeck==0.9.3",
     "prometheus-client==0.26.0",
+    "slowapi==0.1.9",
     
     # Data Visualization & Analysis
     "seaborn==0.13.2",

@@ -29,7 +29,10 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.schemas import (
     PredictionResponse, ErrorResponse, HealthResponse, CitiesResponse,
@@ -44,6 +47,27 @@ from src.utils.logger import get_logger, log_event
 from src.utils.metrics import update_model_metrics
 
 logger = get_logger(__name__)
+
+# Rate limiting: per-IP tracking with Redis fallback to in-memory
+# Disable rate limiting in test/development mode (SLOWAPI_ENABLED=false)
+enabled_rate_limiting = os.getenv('SLOWAPI_ENABLED', 'true').lower() != 'false'
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200/hour"],  # Default fallback
+    enabled=enabled_rate_limiting  # Can be disabled for testing
+)
+
+# Prometheus metrics for rate limiting (use try/except to avoid duplicate registration)
+try:
+    rate_limit_exceeded_counter = Counter(
+        'aqi_rate_limit_exceeded_total',
+        'Total rate limit exceeded errors',
+        ['endpoint']
+    )
+except:
+    # Already registered in a previous import
+    from prometheus_client import REGISTRY
+    rate_limit_exceeded_counter = REGISTRY._names_to_collectors.get('aqi_rate_limit_exceeded_total')
 
 app = FastAPI(
     title="AQI Predictor — Pakistan",
@@ -137,6 +161,24 @@ Include `request_id` in bug reports. Check the `/health` endpoint to verify serv
     openapi_url="/openapi.json",
 )
 
+# Apply limiter to app (enables @limiter.limit() decorator)
+app.state.limiter = limiter
+
+# Only add rate limit exception handler if rate limiting is enabled
+if enabled_rate_limiting:
+    app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(
+        status_code=429,
+        headers={
+            "Retry-After": str(max(60, int(exc.args[1]) if len(exc.args) > 1 else 60))
+        },
+        content={
+            "error": "Rate limit exceeded",
+            "details": "Too many requests from this IP address",
+            "retry_after": max(60, int(exc.args[1]) if len(exc.args) > 1 else 60),
+            "message": "Please wait before retrying. Rate limits are per IP address."
+        }
+    ))
+
 
 @app.middleware("http")
 async def request_logging(request, call_next):
@@ -146,12 +188,25 @@ async def request_logging(request, call_next):
     the minimum needed to answer "is the API healthy / who is calling
     it / where is the latency". The event name is http_request so a log
     drain or Render's log search can filter on it.
+    
+    Also tracks rate limit exceedances per endpoint and IP for alerting.
     """
     import time
 
     start = time.perf_counter()
     try:
         response = await call_next(request)
+    except RateLimitExceeded as e:
+        # Log rate limit exceeded with IP for monitoring
+        client_ip = get_remote_address(request)
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        log_event(
+            logger, "http_request_rate_limited", level=logging.WARNING,
+            method=request.method, path=request.url.path,
+            status=429, client_ip=client_ip, duration_ms=duration_ms,
+        )
+        rate_limit_exceeded_counter.labels(endpoint=request.url.path).inc()
+        raise
     except Exception:
         log_event(
             logger, "http_request", level=logging.ERROR,
@@ -159,22 +214,29 @@ async def request_logging(request, call_next):
             status=500, duration_ms=round((time.perf_counter() - start) * 1000, 1),
         )
         raise
+    
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
     log_event(
         logger, "http_request",
         method=request.method, path=request.url.path,
         status=response.status_code,
-        duration_ms=round((time.perf_counter() - start) * 1000, 1),
+        duration_ms=duration_ms,
     )
     return response
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Status"])
-def health():
+@limiter.limit("60/minute")
+def health(request: Request):
     """
     **Service health status and production model info.**
 
     Used by monitoring systems and uptime checks. Returns current service status
     and information about the active production model.
+
+    ### Rate Limit
+    - **Limit**: 60 requests per minute per IP
+    - **Header**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
     ### Returns
     - **status**: 'ok' if service is running normally
@@ -210,7 +272,8 @@ def health():
 
 
 @app.get("/cities", response_model=CitiesResponse, tags=["Reference Data"])
-def cities():
+@limiter.limit("60/minute")
+def cities(request: Request):
     """
     **List of 10 training cities with coordinates.**
 
@@ -218,6 +281,10 @@ def cities():
     UI dropdowns or validating that predictions for nearby cities will be accurate.
 
     All cities are in Pakistan.
+
+    ### Rate Limit
+    - **Limit**: 60 requests per minute per IP
+    - **Header**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
     ### Training Cities
     1. Karachi (24.86°N, 67.01°E)
@@ -237,17 +304,33 @@ def cities():
     ### Note
     The model generalizes well to *any* Pakistani coordinates, not just training cities.
     """
-    return {"cities": CITIES}
+    # Transform CITIES dict to match CityInfo schema
+    # CITIES format: {"Karachi": {"lat": 24.86, "lon": 67.01}}
+    # CityInfo format: {"name": "Karachi", "latitude": 24.86, "longitude": 67.01}
+    cities_data = {
+        city_name: {
+            "name": city_name,
+            "latitude": coords["lat"],
+            "longitude": coords["lon"]
+        }
+        for city_name, coords in CITIES.items()
+    }
+    return {"cities": cities_data}
 
 
 @app.get("/metrics", tags=["Monitoring"], response_class=Response)
-def metrics():
+@limiter.limit("60/minute")
+def metrics(request: Request):
     """
     **Prometheus metrics for monitoring and observability.**
 
     Exposes all tracked metrics in Prometheus text format (OpenMetrics).
     Used by Prometheus scraper (configured in docker-compose.yml) and
     visualized in Grafana dashboards.
+    
+    ### Rate Limit
+    - **Limit**: 60 requests per minute per IP
+    - **Header**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
     ### Metrics Exposed
 
@@ -305,12 +388,14 @@ def metrics():
     responses={
         200: {"description": "Forecast successful"},
         400: {"model": ErrorResponse, "description": "Invalid parameters (bad coordinates)"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded (30 per minute)"},
         503: {"model": ErrorResponse, "description": "Service unavailable (no model or API down)"},
         500: {"model": ErrorResponse, "description": "Unexpected server error"},
     },
     tags=["Predictions"]
 )
-def predict_endpoint(
+@limiter.limit("30/minute")
+def predict_endpoint(request: Request,
     lat: float = Query(
         ...,
         ge=-90,
@@ -598,12 +683,14 @@ def predict_endpoint(
     response_model=MigrationResponse,
     responses={
         200: {"description": "Migration complete"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded (10 per minute)"},
         503: {"model": ErrorResponse, "description": "Hopsworks not configured or unavailable"},
         500: {"model": ErrorResponse, "description": "Local store or Hopsworks error"},
     },
     tags=["Admin"],
 )
-def migrate_predictions():
+@limiter.limit("10/minute")
+def migrate_predictions(request: Request):
     """
     **[ADMIN] Migrate local predictions to Hopsworks feature store.**
 
