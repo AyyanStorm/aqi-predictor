@@ -141,7 +141,7 @@ _TARGET_PREFIX = "y_"
 METADATA_COLUMNS = {"city", "date", "us_aqi", "local_hour", "month", "day_of_week"}
 
 
-def select_features(df):
+def select_features(df: pd.DataFrame) -> list[str]:
     """
     Return the feature column list for a training DataFrame.
 
@@ -159,7 +159,7 @@ def select_features(df):
     return feature_cols
 
 
-def train_ridge_models(train_df, feature_cols=None, alpha=1.0):
+def train_ridge_models(train_df: pd.DataFrame, feature_cols: list[str] | None = None, alpha: float = 1.0) -> dict[int, Pipeline]:
     """
     Fit one (StandardScaler + Ridge) pipeline per forecast horizon.
 
@@ -220,7 +220,7 @@ def train_ridge_models(train_df, feature_cols=None, alpha=1.0):
     return models
 
 
-def ridge_fit_predict(train_df, valid_df, alpha=1.0, feature_cols=None):
+def ridge_fit_predict(train_df: pd.DataFrame, valid_df: pd.DataFrame, alpha: float = 1.0, feature_cols: list[str] | None = None) -> pd.DataFrame:
     """
     The fit_predict(train_df, valid_df) contract for walk_forward_evaluate().
 
@@ -248,9 +248,9 @@ def ridge_fit_predict(train_df, valid_df, alpha=1.0, feature_cols=None):
     return preds
 
 
-def train_rf_models(train_df, feature_cols=None, n_estimators=300,
-                    max_depth=None, min_samples_leaf=2, max_features=1.0/3.0,
-                    n_jobs=-1, random_state=42):
+def train_rf_models(train_df: pd.DataFrame, feature_cols: list[str] | None = None, n_estimators: int = 300,
+                    max_depth: int | None = None, min_samples_leaf: int = 2, max_features: float = 1.0/3.0,
+                    n_jobs: int = -1, random_state: int = 42) -> dict[int, RandomForestRegressor]:
     """
     Fit one RandomForestRegressor per forecast horizon (Day 11 deliverable).
 
@@ -305,7 +305,7 @@ def train_rf_models(train_df, feature_cols=None, n_estimators=300,
     return models
 
 
-def rf_fit_predict(train_df, valid_df, feature_cols=None, **rf_kwargs):
+def rf_fit_predict(train_df: pd.DataFrame, valid_df: pd.DataFrame, feature_cols: list[str] | None = None, **rf_kwargs) -> pd.DataFrame:
     """
     The fit_predict(train_df, valid_df) contract for walk_forward_evaluate().
 
@@ -330,7 +330,7 @@ def rf_fit_predict(train_df, valid_df, feature_cols=None, **rf_kwargs):
     return preds
 
 
-def feature_importance_table(models, feature_cols):
+def feature_importance_table(models: dict[int, RandomForestRegressor], feature_cols: list[str]) -> pd.DataFrame:
     """
     Random Forest feature importances (Day 11 theme).
 
@@ -358,10 +358,10 @@ def feature_importance_table(models, feature_cols):
     return table
 
 
-def train_lgbm_models(train_df, feature_cols=None, n_estimators=500,
-                      learning_rate=0.05, num_leaves=31, min_child_samples=20,
-                      subsample=0.9, colsample_bytree=0.9, n_jobs=-1,
-                      random_state=42, verbosity=-1):
+def train_lgbm_models(train_df: pd.DataFrame, feature_cols: list[str] | None = None, n_estimators: int = 500,
+                      learning_rate: float = 0.05, num_leaves: int = 31, min_child_samples: int = 20,
+                      subsample: float = 0.9, colsample_bytree: float = 0.9, n_jobs: int = -1,
+                      random_state: int = 42, verbosity: int = -1) -> dict[int, LGBMRegressor]:
     """
     Fit one LGBMRegressor per forecast horizon (Day 12 deliverable).
 
@@ -427,7 +427,7 @@ def train_lgbm_models(train_df, feature_cols=None, n_estimators=500,
     return models
 
 
-def lgbm_fit_predict(train_df, valid_df, feature_cols=None, **lgbm_kwargs):
+def lgbm_fit_predict(train_df: pd.DataFrame, valid_df: pd.DataFrame, feature_cols: list[str] | None = None, **lgbm_kwargs) -> pd.DataFrame:
     """
     The fit_predict(train_df, valid_df) contract for walk_forward_evaluate().
 
@@ -452,7 +452,7 @@ def lgbm_fit_predict(train_df, valid_df, feature_cols=None, **lgbm_kwargs):
     return preds
 
 
-def coefficient_table(models, feature_cols):
+def coefficient_table(models: dict[int, Pipeline], feature_cols: list[str]) -> pd.DataFrame:
     """
     Coefficient interpretation (Day 10 theme).
 
@@ -484,55 +484,55 @@ def coefficient_table(models, feature_cols):
     return table
 
 
-def _print_results(baseline_results, model_results, top_k=10, model_name="MODEL",
-                   importance_table=None):
+def _print_results(baseline_results: pd.DataFrame, model_results: pd.DataFrame, top_k: int = 10, model_name: str = "MODEL",
+                   importance_table: pd.DataFrame | None = None) -> None:
     """Pretty-print the comparison table + per-model interpretation.
 
     model_results: walk-forward results frame (one row per fold_cut).
     importance_table: for RF — feature importances; None for Ridge (which
     prints coefficients instead). Both are derived from a full-data refit.
     """
-    print("\n" + "=" * 62)
-    print("NAIVE BASELINES (the floor any model must beat) — RMSE")
-    print("=" * 62)
-    print(baseline_results.pivot(index="horizon_h", columns="baseline",
-                                 values="rmse").round(1).to_string())
-    print("\n" + "=" * 62)
-    print(f"{model_name} — walk-forward evaluation (mean across folds) — RMSE/MAE/R2")
-    print("=" * 62)
+    logger.info("=" * 62)
+    logger.info("NAIVE BASELINES (the floor any model must beat) — RMSE")
+    logger.info("=" * 62)
+    logger.info(str(baseline_results.pivot(index="horizon_h", columns="baseline",
+                                 values="rmse").round(1).to_string()))
+    logger.info("=" * 62)
+    logger.info(f"{model_name} — walk-forward evaluation (mean across folds) — RMSE/MAE/R2")
+    logger.info("=" * 62)
     mean = model_results[model_results["fold_cut"] == "mean"]
-    print(mean[["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False))
+    logger.info(str(mean[["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False)))
 
     if importance_table is None:
         # LSTM (Day 15): no native feature importance or coefficients.
         # The honest statement is that it has neither — SHAP (Day 20)
         # will be the interpretability layer for every model.
-        print("\n" + "=" * 62)
-        print("LSTM: no native feature importance (sequence model) — ")
-        print("interpretability comes from SHAP on Day 20.")
-        print("=" * 62)
+        logger.info("=" * 62)
+        logger.info("LSTM: no native feature importance (sequence model) — ")
+        logger.info("interpretability comes from SHAP on Day 20.")
+        logger.info("=" * 62)
     elif "importance" not in importance_table.columns:
-        print("\n" + "=" * 62)
-        print(f"TOP {top_k} COEFFICIENT DRIVERS PER HORIZON (standardised)")
-        print("=" * 62)
+        logger.info("=" * 62)
+        logger.info(f"TOP {top_k} COEFFICIENT DRIVERS PER HORIZON (standardised)")
+        logger.info("=" * 62)
         for h in FORECAST_HORIZONS:
             top = importance_table[importance_table["horizon_h"] == h].head(top_k)
-            print(f"\n+{h}h:")
+            logger.info(f"\n+{h}h:")
             for _, row in top.iterrows():
                 sign = "+" if row["coefficient"] >= 0 else "-"
-                print(f"  {sign} {abs(row['coefficient']):8.2f}  {row['feature']}")
+                logger.info(f"  {sign} {abs(row['coefficient']):8.2f}  {row['feature']}")
     else:
-        print("\n" + "=" * 62)
-        print(f"TOP {top_k} FEATURE IMPORTANCES PER HORIZON ({model_name})")
-        print("=" * 62)
+        logger.info("=" * 62)
+        logger.info(f"TOP {top_k} FEATURE IMPORTANCES PER HORIZON ({model_name})")
+        logger.info("=" * 62)
         for h in FORECAST_HORIZONS:
             top = importance_table[importance_table["horizon_h"] == h].head(top_k)
-            print(f"\n+{h}h:")
+            logger.info(f"\n+{h}h:")
             for _, row in top.iterrows():
-                print(f"  {row['importance']:7.3f}  {row['feature']}")
+                logger.info(f"  {row['importance']:7.3f}  {row['feature']}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Days 10-11: Ridge + Random Forest training pipeline (walk-forward)."
     )
@@ -746,10 +746,10 @@ def main():
                 notes="full-data refit, walk-forward metrics from --register run",
             )
             reg.promote_if_better(name, version)
-        print("\n" + "=" * 62)
-        print("MODEL REGISTRY (Day 14) — current production")
-        print("=" * 62)
-        print(reg.status())
+        logger.info("=" * 62)
+        logger.info("MODEL REGISTRY (Day 14) — current production")
+        logger.info("=" * 62)
+        logger.info(reg.status())
 
 
 if __name__ == "__main__":

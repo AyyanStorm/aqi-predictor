@@ -83,7 +83,7 @@ HISTORY_DAYS = 10
 FORECAST_DAYS = 4
 
 
-def fetch_live_frame(latitude, longitude, city="inference"):
+def fetch_live_frame(latitude: float, longitude: float, city: str = "inference") -> tuple:
     """
     Build the live inference frame for one location.
 
@@ -131,14 +131,14 @@ def fetch_live_frame(latitude, longitude, city="inference"):
         )
     now_ts = df.index[observed][-1]
 
-    logger.info(
+    logger.debug(
         f"Live frame ready: {len(df)} rows, "
         f"{df.index.min()} -> {df.index.max()}, now={now_ts}"
     )
     return df, now_ts
 
 
-def predict(latitude, longitude, city="inference", name=None, version=None):
+def predict(latitude: float, longitude: float, city: str = "inference", name: str | None = None, version: int | None = None) -> dict:
     """
     End-to-end inference: lat/lon -> 3-day AQI forecast.
     
@@ -299,7 +299,7 @@ def predict(latitude, longitude, city="inference", name=None, version=None):
             )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Day 16: end-to-end inference — city or lat/lon -> 3-day AQI forecast."
     )
@@ -332,7 +332,7 @@ def main():
 
     result = predict(lat, lon, city=args.city,
                      name=args.name, version=args.version)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    logger.info(json.dumps(result, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

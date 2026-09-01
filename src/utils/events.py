@@ -40,6 +40,8 @@ from datetime import date, timedelta
 import numpy as np
 import pandas as pd
 
+from typing import Optional, Tuple
+
 from src.config import (
     AQI_UNHEALTHY,
     AQI_VERY_UNHEALTHY,
@@ -66,7 +68,7 @@ _EVENT_COLUMNS = [
 # 1. EPISODE DETECTION (sustained unhealthy air)
 # =========================================================
 
-def detect_episodes(city_series, min_days=MIN_EPISODE_DAYS, threshold=AQI_UNHEALTHY):
+def detect_episodes(city_series: pd.Series, min_days: int = MIN_EPISODE_DAYS, threshold: float = AQI_UNHEALTHY) -> list[dict]:
     """
     Find runs of consecutive days whose mean AQI >= threshold.
 
@@ -120,8 +122,8 @@ def detect_episodes(city_series, min_days=MIN_EPISODE_DAYS, threshold=AQI_UNHEAL
 # 2. SPIKE DETECTION (sharp short peaks)
 # =========================================================
 
-def detect_spikes(city_series, min_rise=MIN_SPIKE_RISE,
-                  threshold=AQI_VERY_UNHEALTHY, window_h=SPIKE_WINDOW_H):
+def detect_spikes(city_series: pd.Series, min_rise: float = MIN_SPIKE_RISE,
+                  threshold: float = AQI_VERY_UNHEALTHY, window_h: int = SPIKE_WINDOW_H) -> list[dict]:
     """
     Find short, sharp peaks: AQI >= threshold AND it rose >= min_rise
     points within the previous `window_h` hours (a 24h window captures
@@ -183,7 +185,7 @@ def detect_spikes(city_series, min_rise=MIN_SPIKE_RISE,
 # 3. COMBINED PER-CITY DETECTION
 # =========================================================
 
-def detect_events(df, cities=None):
+def detect_events(df: pd.DataFrame, cities: list[str] | None = None) -> pd.DataFrame:
     """
     Run both detectors over every city in the frame.
 
@@ -238,11 +240,11 @@ def detect_events(df, cities=None):
     events = pd.DataFrame(rows, columns=_EVENT_COLUMNS)
     if not events.empty:
         events = events.sort_values(["city", "start"]).reset_index(drop=True)
-    logger.info(f"Detected {len(events)} events across {len(cities)} cities")
+    logger.debug(f"Detected {len(events)} events across {len(cities)} cities")
     return events
 
 
-def event_summary(events):
+def event_summary(events: pd.DataFrame) -> pd.DataFrame:
     """
     Per-city roll-up for the report/dashboard: count of episodes and
     spikes, plus the worst peak AQI seen. Takes detect_events() output.
@@ -268,7 +270,7 @@ def event_summary(events):
     return summary
 
 
-def worst_city(events):
+def worst_city(events: pd.DataFrame) -> tuple[str | None, float | None]:
     """
     Return the city with the single worst peak AQI across all events
     (ties broken by total event count). Returns (city, worst_peak_aqi)
@@ -285,7 +287,7 @@ def worst_city(events):
 # 4. REAL DATA LOADING (Feature Store -> raw CSVs -> live API)
 # =========================================================
 
-def _to_detection_frame(df):
+def _to_detection_frame(df: pd.DataFrame) -> pd.DataFrame:
     """Normalise any real-data frame to the detect_events() contract:
     DatetimeIndex + 'city' + 'us_aqi' columns. Works for Feature Store
     frames (date column), raw backfill CSVs, and live API responses."""
@@ -300,7 +302,7 @@ def _to_detection_frame(df):
     return df[keep]
 
 
-def load_store_data(cities=None):
+def load_store_data(cities: list[str] | None = None) -> pd.DataFrame:
     """Read REAL engineered data from the Feature Store (Hopsworks when
     configured, Parquet fallback otherwise). Empty frame -> not available."""
     from src.features.feature_store import get_feature_store
@@ -308,13 +310,13 @@ def load_store_data(cities=None):
     store = get_feature_store()
     df = store.read_features(cities=cities)
     if df.empty:
-        logger.warning("Feature Store is empty (backfill not run?) — falling through")
+        logger.debug("Feature Store is empty (backfill not run?) — falling through")
         return df
-    logger.info(f"Loaded {len(df)} rows from Feature Store")
+    logger.debug(f"Loaded {len(df)} rows from Feature Store")
     return _to_detection_frame(df)
 
 
-def load_raw_csv(cities=None):
+def load_raw_csv(cities: list[str] | None = None) -> pd.DataFrame:
     """Read the REAL raw backfill CSVs: data/raw/all_cities_historical.csv
     if present, else every data/raw/<city>_historical.csv."""
     combined = RAW_DIR / "all_cities_historical.csv"
@@ -325,15 +327,15 @@ def load_raw_csv(cities=None):
         frames = [pd.read_csv(path) for path in files]
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     if df.empty:
-        logger.warning("No raw CSVs found — falling through to live API")
+        logger.debug("No raw CSVs found — falling through to live API")
         return df
     if cities is not None:
         df = df[df["city"].isin(cities)]
-    logger.info(f"Loaded {len(df)} rows from raw CSVs")
+    logger.debug(f"Loaded {len(df)} rows from raw CSVs")
     return _to_detection_frame(df)
 
 
-def load_live_api(cities=None, start_date=None, end_date=None):
+def load_live_api(cities: list[str] | None = None, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
     """Fetch REAL data straight from Open-Meteo — the same client and
     chunking the Day 8 backfill uses, so it works on a fresh clone with
     zero local data. Requests are cached 1h by the shared client."""
@@ -357,11 +359,11 @@ def load_live_api(cities=None, start_date=None, end_date=None):
         aqi["city"] = city
         frames.append(aqi[["date", "city", "us_aqi"]])
     df = pd.concat(frames, ignore_index=True)
-    logger.info(f"Fetched {len(df)} rows live from Open-Meteo ({len(cities)} cities)")
+    logger.debug(f"Fetched {len(df)} rows live from Open-Meteo ({len(cities)} cities)")
     return _to_detection_frame(df)
 
 
-def load_real_data(cities=None, source="auto", start_date=None, end_date=None):
+def load_real_data(cities: list[str] | None = None, source: str = "auto", start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
     """Cascade loader — REAL data only: Feature Store -> raw CSVs ->
     live Open-Meteo. `source` forces one of {'store', 'csv', 'api'}."""
     if source == "store":
@@ -384,7 +386,7 @@ def load_real_data(cities=None, source="auto", start_date=None, end_date=None):
 # 5. CLI — REAL data by default; --demo for the synthetic smoke test
 # =========================================================
 
-def _demo_data(n_days=400, cities=None):
+def _demo_data(n_days: int = 400, cities: list[str] | None = None) -> pd.DataFrame:
     """
     Synthetic hourly AQI with two KNOWN injected events per city, so the
     detectors can be eyeballed (and tested) without real data:
@@ -415,7 +417,7 @@ def _demo_data(n_days=400, cities=None):
     return pd.concat(frames).sort_index()
 
 
-def main():
+def main() -> None:
     """Detect pollution events on REAL data (default). Source cascade:
     Feature Store -> raw CSVs -> live Open-Meteo fetch. Pass --demo for
     the synthetic smoke test with injected events (detector sanity check
@@ -438,7 +440,7 @@ def main():
     args = parser.parse_args()
 
     if args.demo:
-        logger.warning("Running on SYNTHETIC demo data (--demo) — not real data")
+        logger.debug("Running on SYNTHETIC demo data (--demo) — not real data")
         df = _demo_data(cities=list(CITIES.keys()))
     else:
         cities = [c.strip() for c in args.cities.split(",")] if args.cities else None
@@ -451,11 +453,11 @@ def main():
             )
 
     events = detect_events(df)
-    print(events.to_string(index=False))
-    print("\nPer-city summary (worst peak first):")
-    print(event_summary(events).to_string(index=False))
+    logger.info(str(events.to_string(index=False)))
+    logger.info("Per-city summary (worst peak first):")
+    logger.info(str(event_summary(events).to_string(index=False)))
     city, peak = worst_city(events)
-    print(f"\nWorst city by peak AQI: {city} ({peak:.1f})")
+    logger.info(f"Worst city by peak AQI: {city} ({peak:.1f})")
 
 
 if __name__ == "__main__":

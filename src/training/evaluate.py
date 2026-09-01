@@ -29,6 +29,8 @@ Baseline definitions (hourly data, targets y_h = us_aqi at t + h):
                        always known at time t — no leakage.
 """
 
+from typing import Callable
+
 import numpy as np
 import pandas as pd
 
@@ -46,21 +48,21 @@ _TARGET_PREFIX = "y_"
 # 1. METRICS
 # =========================================================
 
-def rmse(y_true, y_pred):
+def rmse(y_true: any, y_pred: any) -> float:
     """Root mean squared error. Same units as AQI, sensitive to big misses."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
-def mae(y_true, y_pred):
+def mae(y_true: any, y_pred: any) -> float:
     """Mean absolute error. Same units as AQI, robust to outliers."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     return float(np.mean(np.abs(y_true - y_pred)))
 
 
-def r2(y_true, y_pred):
+def r2(y_true: any, y_pred: any) -> float:
     """R² = 1 - SS_res/SS_tot. 1.0 = perfect, 0 = no better than the mean."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -71,7 +73,7 @@ def r2(y_true, y_pred):
     return float(1.0 - ss_res / ss_tot)
 
 
-def compute_metrics(y_true, y_pred):
+def compute_metrics(y_true: any, y_pred: any) -> dict:
     """All headline metrics in one dict. The report and the dashboard
     (Day 20) both read from here so numbers can never disagree."""
     return {
@@ -85,7 +87,7 @@ def compute_metrics(y_true, y_pred):
 # 2. NAIVE BASELINES
 # =========================================================
 
-def persistence_predictions(df, horizons=None):
+def persistence_predictions(df: pd.DataFrame, horizons: list[int] | None = None) -> pd.DataFrame:
     """
     Persistence baseline: for every horizon h, predict the AQI known NOW.
 
@@ -105,7 +107,7 @@ def persistence_predictions(df, horizons=None):
     return preds
 
 
-def seasonal_naive_predictions(df, horizons=None, period_hours=168):
+def seasonal_naive_predictions(df: pd.DataFrame, horizons: list[int] | None = None, period_hours: int = 168) -> pd.DataFrame:
     """
     Seasonal naive baseline: predict the value observed one full period
     before the TARGET timestamp (default period = 1 week = 168h).
@@ -132,7 +134,7 @@ def seasonal_naive_predictions(df, horizons=None, period_hours=168):
     return preds
 
 
-def evaluate_baselines(df, horizons=None):
+def evaluate_baselines(df: pd.DataFrame, horizons: list[int] | None = None) -> pd.DataFrame:
     """
     Score both naive baselines against the real targets and return a tidy
     results table: one row per (baseline, horizon) with rmse/mae/r2.
@@ -169,7 +171,7 @@ def evaluate_baselines(df, horizons=None):
             )
 
     results = pd.DataFrame(rows)
-    logger.info(f"Evaluated {len(baselines)} baselines x {len(horizons)} horizons")
+    logger.debug(f"Evaluated {len(baselines)} baselines x {len(horizons)} horizons")
     return results
 
 
@@ -177,7 +179,7 @@ def evaluate_baselines(df, horizons=None):
 # 3. WALK-FORWARD HARNESS (for real models, Day 10+)
 # =========================================================
 
-def walk_forward_evaluate(df, fit_predict, horizons=None, n_splits=4, gap_hours=None):
+def walk_forward_evaluate(df: pd.DataFrame, fit_predict, horizons: list[int] | None = None, n_splits: int = 4, gap_hours: int | None = None) -> pd.DataFrame:
     """
     Score ANY model on time-ordered walk-forward folds — never shuffled.
 
@@ -235,7 +237,7 @@ def walk_forward_evaluate(df, fit_predict, horizons=None, n_splits=4, gap_hours=
         .reindex(columns=results.columns)
     )
     out = pd.concat([results, agg], ignore_index=True)
-    logger.info(f"Walk-forward evaluation: {len(folds)} folds, {len(horizons)} horizons")
+    logger.debug(f"Walk-forward evaluation: {len(folds)} folds, {len(horizons)} horizons"
     return out
 
 
@@ -243,7 +245,7 @@ def walk_forward_evaluate(df, fit_predict, horizons=None, n_splits=4, gap_hours=
 # 4. CLI — quick sanity run (python -m src.training.evaluate)
 # =========================================================
 
-def _demo_data(n_days=400, cities=None):
+def _demo_data(n_days: int = 400, cities: list[str] | None = None) -> pd.DataFrame:
     """
     Tiny synthetic hourly AQI series so the harness can be smoke-tested
     anywhere, even without the Feature Store. NOT for real conclusions —
@@ -268,15 +270,15 @@ def _demo_data(n_days=400, cities=None):
     return pd.concat(frames).sort_index()
 
 
-def main():
+def main() -> None:
     """Smoke test: build demo data, add targets, print baseline scores."""
     from src.features.targets import add_targets
 
     df = _demo_data()
     df = add_targets(df)
     results = evaluate_baselines(df)
-    print(results.to_string(index=False))
-    print("\n(Run on demo data — load the Feature Store for real numbers.)")
+    logger.info(str(results.to_string(index=False)))
+    logger.info("(Run on demo data — load the Feature Store for real numbers.)")
 
 
 if __name__ == "__main__":

@@ -64,6 +64,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+from typing import Tuple
+
 from src.config import FORECAST_HORIZONS
 from src.training.train import select_features
 from src.utils.logger import get_logger
@@ -77,7 +79,7 @@ _TARGET_PREFIX = "y_"
 # 1. WINDOWING — turn rows into sequences (per city)
 # =========================================================
 
-def _city_windows(city_df, feature_cols, target_col, window):
+def _city_windows(city_df: pd.DataFrame, feature_cols: list[str], target_col: str, window: int) -> tuple:
     """
     Build (X, y) sequences for ONE city's sorted rows.
 
@@ -113,9 +115,9 @@ def _city_windows(city_df, feature_cols, target_col, window):
 # 2. TRAINING — one LSTM per horizon
 # =========================================================
 
-def train_lstm_models(train_df, feature_cols=None, window=24, units=32,
-                      epochs=10, batch_size=256, learning_rate=1e-3,
-                      verbose=0, random_state=42):
+def train_lstm_models(train_df: pd.DataFrame, feature_cols: list[str] | None = None, window: int = 24, units: int = 32,
+                      epochs: int = 10, batch_size: int = 256, learning_rate: float = 1e-3,
+                      verbose: int = 0, random_state: int = 42) -> tuple:
     """
     Fit one LSTM per forecast horizon on windowed sequences.
 
@@ -150,7 +152,7 @@ def train_lstm_models(train_df, feature_cols=None, window=24, units=32,
         for city, city_df in train_df.groupby("city"):
             Xc, yc, _ = _city_windows(city_df, feature_cols, target_col, window)
             if Xc is None:
-                logger.warning(f"City '{city}': fewer than {window} complete "
+                logger.debug(f"City '{city}': fewer than {window} complete "
                                f"rows for horizon {h}h — skipped")
                 continue
             # Scale window features with the TRAIN-fitted scaler.
@@ -175,7 +177,7 @@ def train_lstm_models(train_df, feature_cols=None, window=24, units=32,
     return models, scaler
 
 
-def _build_lstm(window, n_features, units, learning_rate, random_state=42):
+def _build_lstm(window: int, n_features: int, units: int, learning_rate: float, random_state: int = 42):
     """A single-layer LSTM with a linear output head (regression)."""
     import keras
     from keras import layers
@@ -200,7 +202,7 @@ def _build_lstm(window, n_features, units, learning_rate, random_state=42):
 # 3. THE fit_predict CONTRACT (walk_forward_evaluate-compatible)
 # =========================================================
 
-def lstm_fit_predict(train_df, valid_df, feature_cols=None, **lstm_kwargs):
+def lstm_fit_predict(train_df: pd.DataFrame, valid_df: pd.DataFrame, feature_cols: list[str] | None = None, **lstm_kwargs) -> pd.DataFrame:
     """
     Train on train_df, predict every horizon for valid_df.
 
@@ -265,7 +267,7 @@ def lstm_fit_predict(train_df, valid_df, feature_cols=None, **lstm_kwargs):
 # 4. CLI — quick smoke test on demo data
 # =========================================================
 
-def main():
+def main() -> None:
     """Smoke test: LSTM on tiny synthetic data vs naive baselines."""
     import argparse
 
@@ -285,8 +287,8 @@ def main():
     feature_cols = select_features(df)
 
     baselines = evaluate_baselines(df)
-    print(baselines.pivot(index="horizon_h", columns="baseline",
-                          values="rmse").round(1))
+    logger.info(str(baselines.pivot(index="horizon_h", columns="baseline",
+                          values="rmse").round(1)))
 
     results = walk_forward_evaluate(
         df,
@@ -296,9 +298,9 @@ def main():
         ),
         n_splits=2,
     )
-    print("\nLSTM walk-forward (mean across folds):")
-    print(results[results["fold_cut"] == "mean"]
-          [["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False))
+    logger.info("LSTM walk-forward (mean across folds):")
+    logger.info(str(results[results["fold_cut"] == "mean"]
+          [["horizon_h", "rmse", "mae", "r2"]].round(2).to_string(index=False)))
 
 
 if __name__ == "__main__":

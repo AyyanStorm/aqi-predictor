@@ -54,6 +54,7 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Tuple
 
 import joblib
 
@@ -99,7 +100,7 @@ class ModelRegistry:
     can point it at a temp directory, production uses the default one.
     """
 
-    def __init__(self, registry_dir=None):
+    def __init__(self, registry_dir: str | Path | None = None) -> None:
         self.registry_dir = Path(registry_dir) if registry_dir else REGISTRY_DIR
         self.artifacts_dir = self.registry_dir / "artifacts"
         self.index_file = self.registry_dir / "registry.json"
@@ -112,12 +113,12 @@ class ModelRegistry:
     # Index I/O
     # -------------------------------------------------
 
-    def _read_index(self):
+    def _read_index(self) -> dict:
         """Load the index JSON. Returns the parsed dict."""
         with open(self.index_file, "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def _write_index(self, index):
+    def _write_index(self, index: dict) -> None:
         """Atomically persist the index: temp file + rename."""
         fd, tmp_path = tempfile.mkstemp(
             dir=self.registry_dir, suffix=".tmp"
@@ -135,7 +136,7 @@ class ModelRegistry:
     # Versioning
     # -------------------------------------------------
 
-    def _next_version(self, index, name):
+    def _next_version(self, index: dict, name: str) -> int:
         """v1, v2, v3... — one counter per model name."""
         versions = [
             v["version"]
@@ -145,15 +146,15 @@ class ModelRegistry:
         return max(versions, default=0) + 1
 
     @staticmethod
-    def _artifact_filename(name, version):
+    def _artifact_filename(name: str, version: int) -> str:
         return f"{name}_v{version}.joblib"
 
     # -------------------------------------------------
     # Registration
     # -------------------------------------------------
 
-    def register(self, name, models, metrics, feature_cols, params=None,
-                 n_train_rows=None, train_window=None, notes=""):
+    def register(self, name: str, models: dict, metrics: dict, feature_cols: list[str], params: dict | None = None,
+                 n_train_rows: int | None = None, train_window: dict | None = None, notes: str = "") -> int:
         """
         Save a trained model set to the registry as a new version.
 
@@ -224,7 +225,7 @@ class ModelRegistry:
     # Promotion / rollback
     # -------------------------------------------------
 
-    def _find(self, index, name, version=None):
+    def _find(self, index: dict, name: str, version: int | None = None) -> dict | None:
         """Return the version dict; the production one by default."""
         for v in index["versions"]:
             if v["name"] == name and (
@@ -235,7 +236,7 @@ class ModelRegistry:
                 return v
         return None
 
-    def promote(self, name, version):
+    def promote(self, name: str, version: int) -> None:
         """
         Manually promote a version to production.
 
@@ -266,7 +267,7 @@ class ModelRegistry:
         self._write_index(index)
         logger.info(f"Promoted {name}_v{version} to production")
 
-    def promote_if_better(self, name, version, force=False):
+    def promote_if_better(self, name: str, version: int, force: bool = False) -> bool:
         """
         The AUTOMATED promotion rule (used by the Day 22 training cron).
 
@@ -307,7 +308,7 @@ class ModelRegistry:
         )
         return False
 
-    def rollback(self, name):
+    def rollback(self, name: str) -> None:
         """
         Undo the last promotion for a model name.
 
@@ -334,7 +335,7 @@ class ModelRegistry:
     # Loading (used by inference, Day 16)
     # -------------------------------------------------
 
-    def production_entry(self):
+    def production_entry(self) -> dict | None:
         """
         The current production version of the whole registry (any name).
 
@@ -351,7 +352,7 @@ class ModelRegistry:
             key=lambda v: v.get("promoted_at") or v.get("created_at") or "",
         )
 
-    def load(self, name, version=None):
+    def load(self, name: str, version: int | None = None) -> tuple:
         """
         Load a registered model set from disk.
 
@@ -378,7 +379,7 @@ class ModelRegistry:
     # Introspection
     # -------------------------------------------------
 
-    def list_versions(self, name=None):
+    def list_versions(self, name: str | None = None) -> list[dict]:
         """All registered versions, newest first. Optionally filtered by name."""
         index = self._read_index()
         versions = sorted(
@@ -388,7 +389,7 @@ class ModelRegistry:
             versions = [v for v in versions if v["name"] == name]
         return versions
 
-    def production(self, name):
+    def production(self, name: str) -> dict | None:
         """Metadata for the current production version of a model name."""
         index = self._read_index()
         entry = self._find(index, name)
@@ -396,7 +397,7 @@ class ModelRegistry:
             return None
         return entry
 
-    def status(self):
+    def status(self) -> str:
         """Human-readable registry status: every version + production."""
         index = self._read_index()
         lines = []
@@ -415,7 +416,7 @@ class ModelRegistry:
 # 2. CLI
 # =========================================================
 
-def main():
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -443,12 +444,12 @@ def main():
     if args.command == "list":
         versions = reg.list_versions()
         if not versions:
-            print("(registry is empty — run training with --register to add models)")
+            logger.info("(registry is empty — run training with --register to add models)")
         for v in versions:
-            print(f"  {v['name']}_v{v['version']}  [{v['status']}]  "
+            logger.info(f"  {v['name']}_v{v['version']}  [{v['status']}]  "
                   f"mean RMSE {v['mean_rmse']:.2f}  ({v['created_at'][:10]})")
     elif args.command == "status":
-        print(reg.status())
+        logger.info(reg.status())
     elif args.command == "info":
         entry = None
         if args.version is not None:
@@ -460,13 +461,13 @@ def main():
             entry = reg.production(args.name)
         if entry is None:
             raise SystemExit(f"No version found: {args.name}_v{args.version or 'production'}")
-        print(json.dumps(entry, indent=2, sort_keys=True))
+        logger.info(json.dumps(entry, indent=2, sort_keys=True))
     elif args.command == "promote":
         reg.promote(args.name, args.version)
-        print(reg.status())
+        logger.info(reg.status())
     elif args.command == "rollback":
         reg.rollback(args.name)
-        print(reg.status())
+        logger.info(reg.status())
 
 
 if __name__ == "__main__":

@@ -78,7 +78,7 @@ GRIDS = {
 # 1. GRID SEARCH ON WALK-FORWARD CV
 # =========================================================
 
-def _fit_predict_for(model_name, params, feature_cols):
+def _fit_predict_for(model_name: str, params: dict, feature_cols: list[str]):
     """Build the fit_predict callable for one model + param combo.
 
     Every callable has the (train_df, valid_df) -> predictions contract
@@ -100,7 +100,7 @@ def _fit_predict_for(model_name, params, feature_cols):
     raise ValueError(f"Unknown model '{model_name}' (use ridge|rf|lgbm)")
 
 
-def run_grid_search(df, model_name, grid=None, n_splits=4, feature_cols=None):
+def run_grid_search(df: pd.DataFrame, model_name: str, grid: dict | None = None, n_splits: int = 4, feature_cols: list[str] | None = None) -> pd.DataFrame:
     """
     Score every hyperparameter combination on walk-forward CV.
 
@@ -140,15 +140,16 @@ def run_grid_search(df, model_name, grid=None, n_splits=4, feature_cols=None):
                     "r2": r["r2"],
                 }
             )
-        logger.info(f"  {params}: " + ", ".join(
+        rmse_info = ", ".join(
             f"{h}h rmse={mean.loc[mean.horizon_h == h, 'rmse'].iloc[0]:.2f}"
             for h in FORECAST_HORIZONS
-        ))
+        )
+        logger.info(f"  {params}: {rmse_info}")
 
     return pd.DataFrame(rows)
 
 
-def _py(value):
+def _py(value: any) -> any:
     """Convert numpy scalars to plain Python so str() round-trips.
 
     best_combos() reads values back out of a DataFrame, which returns
@@ -162,7 +163,7 @@ def _py(value):
     return value
 
 
-def best_combos(grid_results, model_name, grid=None):
+def best_combos(grid_results: pd.DataFrame, model_name: str, grid: dict | None = None) -> dict:
     """
     Pick the best hyperparameters from a run_grid_search() result.
 
@@ -195,7 +196,7 @@ def best_combos(grid_results, model_name, grid=None):
 # 2. UNSEEN-CITY HOLDOUT (Sialkot is in no training fold)
 # =========================================================
 
-def _load_or_fetch_holdout(holdout_city, coords=None):
+def _load_or_fetch_holdout(holdout_city: str, coords: dict | None = None) -> pd.DataFrame:
     """
     Return an engineered, date-indexed frame for the holdout city.
 
@@ -240,19 +241,19 @@ def _load_or_fetch_holdout(holdout_city, coords=None):
         raw = pd.read_csv(raw_path)
         raw["date"] = pd.to_datetime(raw["date"], utc=True)
         frame = _engineer(raw)
-        logger.info(f"Holdout city '{holdout_city}': loaded {len(raw)} raw rows "
+        logger.debug(f"Holdout city '{holdout_city}': loaded {len(raw)} raw rows "
                     f"from {raw_path} (cached)")
     else:
         engineered, raw = backfill_city(holdout_city, coords["lat"], coords["lon"])
         frame = engineered
-        logger.info(f"Holdout city '{holdout_city}': fetched + engineered "
+        logger.debug(f"Holdout city '{holdout_city}': fetched + engineered "
                     f"{len(frame)} rows (evaluation only, never stored)")
 
     return frame.set_index("date").sort_index()
 
 
-def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
-                        feature_cols=None, coords=None, **model_kwargs):
+def unseen_city_holdout(df: pd.DataFrame, model_name: str, holdout_city: str = "Sialkot",
+                        feature_cols: list[str] | None = None, coords: dict | None = None, **model_kwargs) -> pd.DataFrame:
     """
     Train on every city EXCEPT holdout_city; evaluate only on holdout_city.
 
@@ -282,7 +283,7 @@ def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
     train_df = df[df["city"] != holdout_city]
     test_df = df[df["city"] == holdout_city]
     if len(test_df) == 0:
-        logger.warning(f"Holdout city '{holdout_city}' not in the feature store — "
+        logger.debug(f"Holdout city '{holdout_city}' not in the feature store — "
                        f"fetching its history on demand for evaluation only.")
         test_df = _load_or_fetch_holdout(holdout_city, coords=coords)
 
@@ -331,7 +332,7 @@ def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
     baselines = evaluate_baselines(test_df)
     for _, r in baselines.iterrows():
         rows.append({"model": f"baseline: {r['baseline']}", "horizon_h": r["horizon_h"],
-                     "n": int(r["n"]), "rmse": r["rmse"], "mae": r["mae"], "r2": r["r2"]})
+                     "n": int(r["n"]), "rmse": float(r["rmse"]), "mae": float(r["mae"]), "r2": float(r["r2"])})
 
     return pd.DataFrame(rows)
 
@@ -340,7 +341,7 @@ def unseen_city_holdout(df, model_name, holdout_city="Sialkot",
 # 3. CLI
 # =========================================================
 
-def _load_data(args):
+def _load_data(args) -> pd.DataFrame:
     """Feature store first, multi-city demo fallback (with Sialkot)."""
     from src.config import CITIES
 
@@ -351,12 +352,12 @@ def _load_data(args):
         store = get_feature_store()
         df = store.read_features()
         if df.empty:
-            logger.warning("Feature store empty — falling back to synthetic demo data.")
+            logger.debug("Feature store empty — falling back to synthetic demo data.")
             df = None
         else:
             df = df.set_index("date").sort_index()
             df["us_aqi"] = df["us_aqi"].astype(float)
-            logger.info(f"Loaded {len(df)} rows from feature store "
+            logger.debug(f"Loaded {len(df)} rows from feature store "
                         f"({df['city'].nunique()} cities).")
 
     if df is None:
@@ -366,7 +367,7 @@ def _load_data(args):
         # exercises the exact same protocol as the real backfill.
         cities = list(CITIES) + ["Sialkot"]
         df = _demo_data(n_days=args.demo_days, cities=cities)
-        logger.warning(f"Running on DEMO data ({len(cities)} cities) — numbers are "
+        logger.debug(f"Running on DEMO data ({len(cities)} cities) — numbers are "
                        "NOT meaningful; run the Day 8 backfill for real results.")
 
     # Features + targets if the frame doesn't already carry them.
@@ -390,7 +391,7 @@ def _load_data(args):
     return df
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Day 13: walk-forward backtesting, hyperparameter tuning, "
                     "unseen-city holdout."
@@ -411,46 +412,46 @@ def main():
 
     df = _load_data(args)
     feature_cols = select_features(df)
-    logger.info(f"Features ({len(feature_cols)}): {feature_cols}")
+    logger.debug(f"Features ({len(feature_cols)}): {feature_cols}")
 
     # ---- 1+2. Backtesting + tuning (walk-forward grid search) ----
     best = None
     if not args.skip_tune:
-        print("\n" + "=" * 68)
-        print(f"GRID SEARCH: {args.model} on walk-forward CV "
+        logger.info("=" * 68)
+        logger.info(f"GRID SEARCH: {args.model} on walk-forward CV "
               f"({args.n_splits} folds) — mean RMSE per horizon")
-        print("=" * 68)
+        logger.info("=" * 68)
         grid_results = run_grid_search(df, args.model, n_splits=args.n_splits,
                                        feature_cols=feature_cols)
         best = best_combos(grid_results, args.model)
 
-        print("\nBest combo per horizon:")
+        logger.info("Best combo per horizon:")
         for h, params in best["per_horizon"].items():
             rmse = grid_results[
                 (grid_results.horizon_h == h)
                 & (grid_results.combo == str(params))
             ]["rmse"].iloc[0]
-            print(f"  +{h}h: rmse={rmse:6.2f}  {params}")
-        print(f"\nBest overall: {best['overall']}")
+            logger.info(f"  +{h}h: rmse={rmse:6.2f}  {params}")
+        logger.info(f"Best overall: {best['overall']}")
 
     # ---- 3. Unseen-city holdout ----
-    holdout_params = {}
+    holdout_params: dict = {}
     if best is not None:
         # Use the OVERALL best combo for the holdout model (single honest
         # model, no cherry-picking per horizon for the proof).
         holdout_params = best["overall"]
-    print("\n" + "=" * 68)
-    print(f"UNSEEN-CITY HOLDOUT: train on 10 cities, evaluate on "
+    logger.info("=" * 68)
+    logger.info(f"UNSEEN-CITY HOLDOUT: train on 10 cities, evaluate on "
           f"'{args.holdout_city}' (never seen)")
-    print("=" * 68)
+    logger.info("=" * 68)
     holdout = unseen_city_holdout(df, args.model, holdout_city=args.holdout_city,
                                   feature_cols=feature_cols, **holdout_params)
     pivot = holdout.pivot(index="horizon_h", columns="model",
                           values="rmse").round(1)
-    print("\nRMSE on the holdout city (lower is better):")
-    print(pivot.to_string())
-    print("\nFull metrics:")
-    print(holdout.round(2).to_string(index=False))
+    logger.info("RMSE on the holdout city (lower is better):")
+    logger.info(str(pivot.to_string()))
+    logger.info("Full metrics:")
+    logger.info(str(holdout.round(2).to_string(index=False)))
 
 
 if __name__ == "__main__":
