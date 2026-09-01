@@ -151,7 +151,7 @@ class TestFeatureStoreWorkflow:
             # Create sample feature data
             original_data = pd.DataFrame({
                 "city": ["Karachi"] * 24,
-                "date": pd.date_range("2026-01-01", periods=24, freq="H"),
+                "date": pd.date_range("2026-01-01", periods=24, freq="h"),
                 "pm25": range(50, 74),
                 "pm10": range(100, 124),
                 "temperature": range(25, 49),
