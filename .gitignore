@@ -5,6 +5,8 @@ __pycache__/
 # Virtual Environment
 venv/
 .venv/
+.venv-test/
+.venv-doc/
 
 # Environment variables
 .env
@@ -19,6 +21,8 @@ venv/
 build/
 dist/
 *.egg-info/
+*.egg/
+*.whl
 
 # Jupyter
 .ipynb_checkpoints/
@@ -26,6 +30,12 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
+.DS_Store?
+.AppleDouble
+.LSOverride
 
 # Data & models — belong in Feature Store / Model Registry, never in git.
 #
@@ -62,12 +72,17 @@ data/*
 
 # Test cache
 .pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # VS Code
 .vscode/
 
 # Streamlit production secrets
 .streamlit/secrets.toml
+
 # OpenClaw agent workspace (not project code)
 AGENTS.md
 SOUL.md
@@ -80,5 +95,40 @@ media/
 skills/
 .clawhub/
 openclaw-workspace-state.json
-.venv-test/
-.venv-doc/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Environment files (except examples)
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.temp
+
+# Node modules (if any frontend deps added)
+node_modules/
+
+# Mac specific
+.AppleDouble
+.LSOverride
+
+# Windows specific
+desktop.ini
+$RECYCLE.BIN/
+
+# IntelliJ
+*.iml
+*.iws
+*.ipr
+
+# Vim
+.vim/
+.swp
+.swo
