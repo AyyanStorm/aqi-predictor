@@ -1,1004 +1,804 @@
-# 🐳 Docker Setup & Deployment Guide
+# Docker Setup Guide
 
-Complete guide for building, running, and deploying AQI Predictor in containers.
+**Complete local development and deployment guide for AQI Predictor**
 
-## Prerequisites
+---
 
-- Docker 20.10+ ([install](https://docs.docker.com/get-docker/))
-- Docker Compose 2.0+ ([install](https://docs.docker.com/compose/install/))
-- Python 3.12 (for local development)
-- Git
+## 📋 Table of Contents
 
-## Quick Start
+1. [Quick Start](#quick-start)
+2. [Prerequisites](#prerequisites)
+3. [Local Development](#local-development)
+4. [Building Images](#building-images)
+5. [Running Services](#running-services)
+6. [Docker Compose](#docker-compose)
+7. [Production Deployment](#production-deployment)
+8. [Troubleshooting](#troubleshooting)
+9. [Advanced Usage](#advanced-usage)
 
-### 1. Clone & Setup
+---
 
+## 🚀 Quick Start
+
+Get the full stack running in 3 commands:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/AyyanStorm/aqi-predictor.git
+cd aqi-predictor
+
+# 2. Build all images
+docker-compose build
+
+# 3. Start all services
+docker-compose up
+```
+
+**Access:**
+- 🌐 **API:** http://localhost:8000
+- 📊 **Dashboard:** http://localhost:8501
+- 📚 **API Docs:** http://localhost:8000/docs
+- 📊 **Metrics:** http://localhost:8000/metrics
+
+---
+
+## ✅ Prerequisites
+
+### Required
+- **Docker** 20.10+ ([install](https://docs.docker.com/install/))
+- **Docker Compose** 2.0+ ([install](https://docs.docker.com/compose/install/))
+- **Git** (for cloning repository)
+- **~4 GB disk space** (for images + data)
+
+### Optional
+- **Docker Desktop** (Windows/Mac)
+- **VS Code + Docker extension**
+- **Python 3.11** (if running tests locally without Docker)
+
+### Verify Installation
+```bash
+docker --version          # Should be 20.10+
+docker-compose --version  # Should be 2.0+
+docker run hello-world    # Should succeed
+```
+
+---
+
+## 💻 Local Development
+
+### 1. Development Setup
+
+Clone and setup:
 ```bash
 git clone https://github.com/AyyanStorm/aqi-predictor.git
 cd aqi-predictor
-```
 
-### 2. Environment Configuration
-
-Create `.env` from `.env.example`:
-
-```bash
+# Create .env file for local development
 cp .env.example .env
+
+# Edit .env with your settings
+nano .env  # or use your editor
 ```
 
-Edit `.env` with your Hopsworks credentials:
+### 2. Environment Variables
 
-```env
-HOPSWORKS_API_KEY=your_api_key_here
-HOPSWORKS_PROJECT=your_project_name
-HOPSWORKS_HOST=eu-west.cloud.hopsworks.ai  # or your region
-HOPSWORKS_PORT=443
+**`.env` file** (local development):
+```bash
+# API Configuration
+API_VERSION=1.0.0
+ENVIRONMENT=development
+SLOWAPI_ENABLED=true
+
+# Logging
+LOGLEVEL=DEBUG
+
+# Optional: Sentry (error tracking)
+# SENTRY_DSN=https://your-sentry-dsn@sentry.io/...
+
+# Optional: Hopsworks (feature store)
+# HOPSWORKS_API_KEY=your_api_key
+# HOPSWORKS_PROJECT=your_project_name
 ```
 
-**⚠️ Important:** Never commit `.env` — it's gitignored.
-
-### 3. Build All Images
+### 3. Quick Commands
 
 ```bash
-docker compose build
+# Build images (first time)
+docker-compose build
+
+# Start services (background)
+docker-compose up -d
+
+# View logs (follow)
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild single service
+docker-compose build api
+
+# Restart single service
+docker-compose restart api
 ```
 
-### 4. Start the Stack
+### 4. Interactive Shell
 
+Access running container:
 ```bash
-docker compose up
-```
+# Shell into API container
+docker-compose exec api bash
 
-This starts:
-- **API**: http://localhost:8000
-- **Dashboard**: http://localhost:8501
+# Inside container
+cd /app
+python -m src.training.model_registry list
+python -c "from src.inference.predict import predict; print(predict(24.86, 67.01, '24h'))"
 
-### 5. Verify Services
-
-```bash
-# API health check
-curl http://localhost:8000/health
-
-# Dashboard (opens in browser)
-open http://localhost:8501
-
-# API endpoints
-curl http://localhost:8000/cities
-curl "http://localhost:8000/predict?lat=24.8608&lon=67.0104&city=Karachi"
-```
-
-### 6. Stop Services
-
-```bash
-docker compose down
-
-# Remove volumes (cleans data/ logs/ too)
-docker compose down -v
+# Shell into Dashboard
+docker-compose exec dashboard bash
 ```
 
 ---
 
-## Building Individual Images
+## 🏗️ Building Images
 
-### Build API Only
+### Build All Services
 
 ```bash
-docker build -f Dockerfile.api -t aqi-api:latest .
+# Build all
+docker-compose build
+
+# Build with no cache (fresh)
+docker-compose build --no-cache
+
+# Build specific service
+docker-compose build api
+docker-compose build dashboard
 ```
 
-### Build Dashboard Only
+### Build Single Service Manually
 
 ```bash
-docker build -f Dockerfile.dashboard -t aqi-dashboard:latest .
+# Build API image
+docker build -f Dockerfile.prod \
+  -t aqi-api:latest \
+  --build-arg PYTHONUNBUFFERED=1 .
+
+# Build Dashboard
+docker build -f Dockerfile.dashboard \
+  -t aqi-dashboard:latest \
+  --build-arg PYTHONUNBUFFERED=1 .
 ```
 
-### Build Feature Pipeline Only
+### View Images
 
 ```bash
-docker build -f Dockerfile.pipeline -t aqi-pipeline:latest .
+# List all images
+docker images | grep aqi
+
+# Image details
+docker inspect aqi-api:latest
+
+# Show image layers
+docker history aqi-api:latest
 ```
 
 ---
 
-## Running Containers Standalone
+## 🚀 Running Services
 
-### Run API
+### Option 1: Docker Compose (Recommended)
 
 ```bash
-docker run -p 8000:8000 \
-  --env-file .env \
-  --mount type=bind,source=$(pwd)/data,target=/app/data \
+# Start all services
+docker-compose up
+
+# Start in background
+docker-compose up -d
+
+# Start specific service only
+docker-compose up api
+
+# View running containers
+docker-compose ps
+
+# Stop all
+docker-compose down
+
+# Stop and remove volumes (cleans database)
+docker-compose down -v
+```
+
+### Option 2: Manual Docker Commands
+
+#### Run API Only
+```bash
+docker run \
+  -p 8000:8000 \
+  -e ENVIRONMENT=development \
+  --name aqi-api \
   aqi-api:latest
 ```
 
-### Run Dashboard
-
+#### Run Dashboard Only
 ```bash
-docker run -p 8501:8501 \
-  --env-file .env \
-  --mount type=bind,source=$(pwd)/data,target=/app/data \
+docker run \
+  -p 8501:8501 \
+  -e ENVIRONMENT=development \
+  --name aqi-dashboard \
   aqi-dashboard:latest
 ```
 
-### Run Feature Pipeline
+### Option 3: With Environment File
 
 ```bash
+# Run with .env file
 docker run \
+  -p 8000:8000 \
   --env-file .env \
-  --mount type=bind,source=$(pwd)/data,target=/app/data \
-  aqi-pipeline:latest
-```
-
-### Override Default Command
-
-```bash
-# Run training instead of ingest
-docker run \
-  --env-file .env \
-  --mount type=bind,source=$(pwd)/data,target=/app/data \
-  aqi-pipeline:latest \
-  python -m src.training.train --model lgbm --register
+  --name aqi-api \
+  aqi-api:latest
 ```
 
 ---
 
-## Docker Compose Services Reference
+## 🎼 Docker Compose
 
-### Configuration
+### Full Stack Configuration
+
+**File:** `docker-compose.yml`
 
 ```yaml
-version: '3.9'
+version: '3.8'
 
 services:
-  aqi-api:           # FastAPI service (port 8000)
-  aqi-dashboard:     # Streamlit dashboard (port 8501)
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOGLEVEL=INFO
+    volumes:
+      - ./app:/app/app
+      - ./src:/app/src
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - ENVIRONMENT=development
+    volumes:
+      - ./app:/app/app
+      - ./src:/app/src
+    depends_on:
+      - api
 
 networks:
-  aqi-network:       # Internal bridge network
-
-volumes:
-  aqi-data:          # Model artifacts & cache
-  aqi-logs:          # Application logs
+  default:
+    driver: bridge
 ```
 
-### Environment Variables
+### Common Tasks
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `HOPSWORKS_API_KEY` | ✅ | — | Feature store authentication |
-| `HOPSWORKS_PROJECT` | ✅ | — | Feature store project name |
-| `HOPSWORKS_HOST` | — | `eu-west.cloud.hopsworks.ai` | Hopsworks region endpoint |
-| `HOPSWORKS_PORT` | — | `443` | Hopsworks port |
-| `STREAMLIT_SERVER_HEADLESS` | — | `true` | Run Streamlit in headless mode |
-| `STREAMLIT_SERVER_ENABLECORS` | — | `false` | Disable CORS for containers |
-
-### Volumes
-
-| Mount | Type | Purpose |
-|-------|------|---------|
-| `/app/data` | Bind | Model artifacts, feature store cache |
-| `/app/logs` | Bind | Application logs, predictions tracking |
-| `/.streamlit` | Bind | Streamlit configuration (optional) |
-
-### Health Checks
-
-Both services have health checks configured:
-
+#### Start Only API
 ```bash
-# Check API health manually
-docker exec aqi-api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-# Check Dashboard health manually
-docker exec aqi-dashboard python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501')"
+docker-compose up api
 ```
 
-View health status:
-
+#### Start API + Dashboard
 ```bash
-docker ps --format "table {{.Names}}\t{{.Status}}"
+docker-compose up
+```
+
+#### Scale Services (Dev)
+```bash
+# Start 2 API instances
+docker-compose up -d --scale api=2
+```
+
+#### View Service Logs
+```bash
+# All logs
+docker-compose logs
+
+# Follow API logs
+docker-compose logs -f api
+
+# Last 100 lines
+docker-compose logs --tail=100
+```
+
+#### Rebuild and Restart
+```bash
+docker-compose down
+docker-compose build --no-cache
+docker-compose up
 ```
 
 ---
 
-## Docker Ignore Rules
+## 🌍 Production Deployment
 
-The `.dockerignore` file excludes unnecessary files from the build context:
+### Option 1: Render.com (Current)
 
-```
-# Excluded:
-- .git, .github (version control)
-- .venv* (local virtual environments)
-- __pycache__, *.pyc (Python cache)
-- .pytest_cache, .coverage (test artifacts)
-- .cache*, *.sqlite (local caches)
-- .streamlit/secrets.toml (secrets)
-- logs/ (generated logs)
-- notebooks/ (dev notebooks)
-- .env (local configuration)
-```
-
-Reduces build context size & speeds up builds.
-
----
-
-## Development Workflow
-
-### Local Iteration
+Automatically deploys from `Dockerfile.prod`:
 
 ```bash
-# 1. Start stack in background
-docker compose up -d
+# Push to main branch
+git push origin main
 
-# 2. Edit code locally
-vim app/api.py
-
-# 3. Rebuild only the changed service
-docker compose build aqi-api
-
-# 4. Restart service
-docker compose up -d aqi-api
-
-# 5. View logs
-docker compose logs -f aqi-api
+# Render automatically:
+# 1. Builds from Dockerfile.prod
+# 2. Runs health checks
+# 3. Deploys to production
+# 4. Handles scaling & monitoring
 ```
 
-### Viewing Logs
+**No Docker commands needed** - Render handles it!
+
+### Option 2: Docker Hub
+
+Push image to Docker Hub:
 
 ```bash
-# All services
-docker compose logs
-
-# Specific service
-docker compose logs aqi-api
-docker compose logs aqi-dashboard
-
-# Follow in real-time
-docker compose logs -f
-
-# Last 50 lines
-docker compose logs --tail=50
-```
-
-### Interactive Shell
-
-```bash
-# Enter API container
-docker exec -it aqi-api /bin/bash
-
-# Enter Dashboard container
-docker exec -it aqi-dashboard /bin/bash
-
-# Run Python REPL in API
-docker exec -it aqi-api python
-```
-
-### Running Tests in Container
-
-```bash
-# Run tests (assumes pytest is in requirements.txt)
-docker compose run --rm aqi-api pytest tests/ -q
-
-# Run with coverage
-docker compose run --rm aqi-api pytest tests/ --cov=src
-```
-
----
-
-## Production Deployment
-
-### Push to Docker Registry
-
-```bash
-# Login to Docker Hub
+# Login
 docker login
 
-# Tag images
-docker tag aqi-api:latest yourusername/aqi-api:latest
-docker tag aqi-dashboard:latest yourusername/aqi-dashboard:latest
+# Build and tag
+docker build -f Dockerfile.prod -t yourusername/aqi-api:latest .
 
 # Push
 docker push yourusername/aqi-api:latest
-docker push yourusername/aqi-dashboard:latest
+
+# Pull & run anywhere
+docker run -p 8000:8000 yourusername/aqi-api:latest
 ```
 
-### Deploy with Docker Swarm
+### Option 3: AWS ECR
+
+Push to AWS Elastic Container Registry:
 
 ```bash
-# Initialize swarm
-docker swarm init
+# Login to ECR
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin 123456789.dkr.ecr.us-east-1.amazonaws.com
 
-# Deploy stack
-docker stack deploy -c docker-compose.yml aqi
+# Build and tag for ECR
+docker build -f Dockerfile.prod \
+  -t 123456789.dkr.ecr.us-east-1.amazonaws.com/aqi-api:latest .
+
+# Push
+docker push 123456789.dkr.ecr.us-east-1.amazonaws.com/aqi-api:latest
 ```
 
-### Deploy with Kubernetes
+### Option 4: Kubernetes
 
-Convert Compose to Kubernetes:
+Deploy to Kubernetes cluster:
 
 ```bash
-# Install kompose
-curl -L https://github.com/kubernetes/kompose/releases/download/v1.28.0/kompose-linux-amd64 -o kompose
-chmod +x kompose
+# Build image
+docker build -f Dockerfile.prod -t aqi-api:latest .
 
-# Convert
-./kompose convert -f docker-compose.yml -o k8s/
+# Tag for registry
+docker tag aqi-api:latest your-registry/aqi-api:latest
+
+# Push to registry
+docker push your-registry/aqi-api:latest
+
+# Create k8s manifests (example)
+cat <<EOF > k8s-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aqi-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aqi-api
+  template:
+    metadata:
+      labels:
+        app: aqi-api
+    spec:
+      containers:
+      - name: api
+        image: your-registry/aqi-api:latest
+        ports:
+        - containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readiness
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 5
+EOF
+
+# Deploy
+kubectl apply -f k8s-deployment.yaml
 ```
-
-### Deploy to Render
-
-Render natively supports Docker Compose blueprints. Create `render-docker.yaml`:
-
-```yaml
-services:
-  - type: web
-    name: aqi-api
-    dockerfilePath: ./Dockerfile.api
-    envVars:
-      - key: HOPSWORKS_API_KEY
-        sync: false
-
-  - type: web
-    name: aqi-dashboard
-    dockerfilePath: ./Dockerfile.dashboard
-    envVars:
-      - key: HOPSWORKS_API_KEY
-        sync: false
-```
-
-Push & connect to Render as a Blueprint.
 
 ---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
-### Port Already in Use
+### Common Issues
 
+#### Port Already in Use
 ```bash
-# Find process using port 8000
+# Find what's using port 8000
 lsof -i :8000
 
-# Kill process
+# Kill process (Linux/Mac)
 kill -9 <PID>
 
-# Or use different port in compose
-# Change ports: "9000:8000" in docker-compose.yml
+# Or use different port
+docker run -p 9000:8000 aqi-api:latest
 ```
 
-### Service Won't Start
-
+#### Build Fails (Dependency Error)
 ```bash
-# Check logs
-docker compose logs aqi-api
+# Build with no cache
+docker-compose build --no-cache
 
-# Rebuild from scratch
-docker compose build --no-cache aqi-api
-docker compose up aqi-api
+# Increase Docker memory
+# Docker Desktop → Preferences → Resources → Memory: 4GB+
+
+# Clean up docker system
+docker system prune -a
 ```
 
-### Model Artifact Not Found
-
+#### Container Keeps Crashing
 ```bash
-# Verify data volume is mounted
-docker exec aqi-api ls -la /app/data/models/registry/
+# View logs
+docker-compose logs api -f
 
-# If missing, copy from local
-docker cp data/models/registry/lgbm_v12.pkl aqi-api:/app/data/models/registry/
+# Check health
+docker-compose ps
+
+# Rebuild and restart
+docker-compose down
+docker-compose build --no-cache
+docker-compose up
 ```
 
-### Hopsworks Connection Error
-
+#### HOPSWORKS_API_KEY Error
 ```bash
-# Check credentials
-docker exec aqi-api python -c "
-import os
-print(f'API Key: {os.getenv(\"HOPSWORKS_API_KEY\")[:10]}...')
-print(f'Project: {os.getenv(\"HOPSWORKS_PROJECT\")}')
-print(f'Host: {os.getenv(\"HOPSWORKS_HOST\")}')
-"
+# Set env var
+export HOPSWORKS_API_KEY=your_key
 
-# Test connection
-docker exec aqi-api python -m src.data_ingestion.ingest --test
+# Or add to .env
+echo "HOPSWORKS_API_KEY=your_key" >> .env
+
+# Restart
+docker-compose down
+docker-compose up
 ```
 
-### Out of Disk Space
+#### Can't Connect to API from Dashboard
+```bash
+# Check networks
+docker network ls
+docker network inspect aqi-predictor_default
+
+# Ensure depends_on is set in docker-compose.yml
+# Restart in correct order
+docker-compose down
+docker-compose up
+```
+
+### Debug Commands
 
 ```bash
-# Clean up unused images & containers
-docker system prune
+# Get container ID
+docker ps
 
-# More aggressive
-docker system prune -a --volumes
+# View full logs
+docker logs <container_id>
+
+# Inspect container
+docker inspect <container_id>
+
+# Execute command
+docker exec <container_id> ps aux
+
+# Check resource usage
+docker stats
+
+# View network
+docker network inspect bridge
 ```
 
 ---
 
-## Performance Tuning
+## 🎓 Advanced Usage
 
-### Reduce Image Size
+### Custom Builds
 
-```dockerfile
-# Use multi-stage builds
-FROM python:3.12-slim as builder
-RUN pip install -r requirements.txt
-
-FROM python:3.12-slim
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-```
-
-### Speed Up Builds
-
+#### Build with Arguments
 ```bash
-# Use BuildKit
-DOCKER_BUILDKIT=1 docker build -f Dockerfile.api .
-
-# Cache dependencies separately
-docker build --target builder ...
+docker build -f Dockerfile.prod \
+  --build-arg PYTHON_VERSION=3.11 \
+  --build-arg PIP_CACHE_DIR=/cache \
+  -t aqi-api:latest .
 ```
 
-### Memory & CPU Limits
+#### Multi-Stage Build Optimization
+```bash
+# Show layers
+docker history aqi-api:latest
+
+# Smaller image = less storage, faster pull
+# Our multi-stage Dockerfile.prod does this automatically
+```
+
+### Docker Compose Overrides
+
+**File:** `docker-compose.override.yml` (local overrides)
 
 ```yaml
-# docker-compose.yml
+version: '3.8'
 services:
-  aqi-api:
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
+  api:
+    environment:
+      - LOGLEVEL=DEBUG
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app  # Hot reload
+      - ./src:/app/src
 ```
 
----
-
-## Security Best Practices
-
-1. **Don't run as root**: Use `USER` in Dockerfile
-2. **Scan for vulnerabilities**: `docker scan aqi-api:latest`
-3. **Use secrets**: Never hardcode API keys
-4. **Keep images updated**: Rebuild regularly
-5. **Minimal base images**: Use `-slim` or `-alpine`
-6. **No secrets in .env**: Load at runtime, never commit
-
-Example hardened Dockerfile:
-
-```dockerfile
-FROM python:3.12-slim
-
-RUN useradd -m -u 1000 appuser
-WORKDIR /app
-RUN chown -R appuser:appuser /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-USER appuser
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0"]
-```
-
----
-
-## Related
-
-- [README.md](README.md) — Project overview
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System design
-- [Docker Compose Spec](https://docs.docker.com/compose/compose-file/)
-- [Dockerfile Best Practices](https://docs.docker.com/develop/dev-best-practices/dockerfile_best-practices/)
-
----
-
-## 📊 Monitoring Stack (Prometheus + Grafana)
-
-Complete observability setup for monitoring AQI Predictor in production.
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│       AQI Predictor Services                │
-│  ┌──────────────┐    ┌──────────────────┐  │
-│  │  FastAPI API │    │  Streamlit App   │  │
-│  │ :8000/metrics│    │ :8501/metrics    │  │
-│  └──────┬───────┘    └────────┬─────────┘  │
-│         │                     │             │
-└─────────┼─────────────────────┼─────────────┘
-          │ scrapes (30s)       │
-          ▼                     ▼
-      ┌────────────────────────────┐
-      │   Prometheus              │
-      │   :9090                   │
-      │ (stores metrics 30 days)  │
-      └────────────┬──────────────┘
-                   │ queries
-                   ▼
-      ┌────────────────────────────┐
-      │   Grafana                  │
-      │   :3000                    │
-      │  (visualizes metrics)      │
-      │  [5 dashboards included]   │
-      └────────────────────────────┘
-```
-
-### Quick Start with Monitoring
-
-#### 1. Start Full Stack (API + Dashboard + Monitoring)
+### Volume Management
 
 ```bash
-# Includes Prometheus, Grafana, API, Dashboard
-docker compose up
+# List volumes
+docker volume ls
 
-# Or start in background
-docker compose up -d
+# Inspect volume
+docker volume inspect aqi-predictor_data
+
+# Remove unused volumes
+docker volume prune
+
+# Backup volume
+docker run --rm -v aqi-predictor_data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/data.tar.gz -C /data .
+
+# Restore volume
+docker run --rm -v aqi-predictor_data:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/data.tar.gz -C /data
 ```
 
-This starts all services:
-- **API**: http://localhost:8000 (metrics: /metrics)
-- **Dashboard**: http://localhost:8501 (metrics: /metrics)
-- **Prometheus**: http://localhost:9090 (metric storage & querying)
-- **Grafana**: http://localhost:3000 (dashboards & visualization)
+### Docker Networking
 
-#### 2. Access Monitoring Stack
-
-**Prometheus:**
 ```bash
-open http://localhost:9090
-```
-- View raw metrics: http://localhost:9090/metrics
-- Query interface: http://localhost:9090/graph
-- Targets status: http://localhost:9090/targets
+# Create custom network
+docker network create aqi-network
 
-**Grafana:**
+# Connect container to network
+docker network connect aqi-network <container_id>
+
+# View network
+docker network inspect aqi-network
+```
+
+### Performance Optimization
+
 ```bash
-open http://localhost:3000
-```
-- Login: `admin` / `admin` (change in .env.grafana)
-- Pre-configured Prometheus datasource
-- 5 pre-built dashboards included
+# BuildKit for faster builds
+DOCKER_BUILDKIT=1 docker build -f Dockerfile.prod -t aqi-api:latest .
 
-#### 3. View Dashboards
+# Parallel builds
+docker-compose build --parallel
 
-Available dashboards (auto-provisioned):
-
-| Dashboard | Purpose | Metrics |
-|-----------|---------|---------|
-| **Health Overview** | System status snapshot | Latency, RMSE, Data age, Error rate |
-| **API Metrics** | API performance & reliability | Request rate, latency, error codes |
-| **Model Metrics** | ML model health | RMSE, accuracy, age, drift detection |
-| **Data Metrics** | Data pipeline status | Freshness, quality, row counts |
-| **Training Metrics** | Training job history | Duration, success rate, versions |
-
-### Configuration
-
-#### Prometheus Configuration
-
-Prometheus is configured in `prometheus.yml`:
-
-```yaml
-global:
-  scrape_interval: 30s      # Scrape every 30 seconds
-  evaluation_interval: 30s  # Evaluate alerts every 30 seconds
-
-scrape_configs:
-  - job_name: 'aqi-api'
-    static_configs:
-      - targets: ['localhost:8000']
-    metrics_path: '/metrics'
-    
-  - job_name: 'aqi-dashboard'
-    static_configs:
-      - targets: ['localhost:8501']
-    metrics_path: '/metrics'
-```
-
-**To modify scrape intervals:**
-
-Edit `prometheus.yml`:
-```yaml
-global:
-  scrape_interval: 15s      # Change to 15s for more frequent scraping
-  evaluation_interval: 15s
-```
-
-Then restart Prometheus:
-```bash
-docker compose restart prometheus
-```
-
-#### Grafana Configuration
-
-Configure in `.env.grafana`:
-
-```env
-# Admin credentials
-GF_SECURITY_ADMIN_USER=admin
-GF_SECURITY_ADMIN_PASSWORD=admin      # CHANGE IN PRODUCTION!
-
-# Server
-GF_SERVER_ROOT_URL=http://localhost:3000
-GF_SERVER_DOMAIN=localhost
-
-# Optional: Enable OAuth
-# GF_AUTH_GENERIC_OAUTH_ENABLED=true
-# GF_AUTH_GENERIC_OAUTH_CLIENT_ID=your_client_id
-```
-
-**To apply changes:**
-```bash
-docker compose down grafana
-docker compose up -d grafana
-```
-
-### Metrics Exposed by AQI Predictor
-
-#### API Metrics (from FastAPI /metrics endpoint)
-
-```
-# Prediction performance
-aqi_prediction_latency_seconds       # P50, P95, P99 latencies
-aqi_api_requests_total              # Total requests by endpoint/status
-
-# Cache performance
-aqi_cache_hits_total                # Cache hits
-aqi_cache_misses_total              # Cache misses
-aqi_cache_hit_ratio                 # Hit rate %
-
-# System health
-aqi_api_requests_in_progress        # Current concurrent requests
-aqi_http_request_duration_seconds   # Request duration histogram
-```
-
-#### Model Metrics (from prediction service)
-
-```
-aqi_model_rmse_production           # Production model RMSE
-aqi_model_rmse_candidate            # Candidate model RMSE
-aqi_model_accuracy_production       # Production accuracy %
-aqi_model_accuracy_candidate        # Candidate accuracy %
-aqi_model_age_days_production       # Days since model training
-```
-
-#### Data Metrics (from feature pipeline)
-
-```
-aqi_feature_store_age_hours         # Hours since last data update
-aqi_feature_store_row_count         # Total rows in feature store
-aqi_data_quality_null_percent       # Null percentage in data
-aqi_data_quality_validation_checks_total  # Quality checks by type
-```
-
-#### Training Metrics (from training pipeline)
-
-```
-aqi_training_last_run_age_days      # Days since last training
-aqi_training_last_run_success       # Last training success (1=yes, 0=no)
-aqi_training_last_run_duration_minutes  # Last training duration
-aqi_training_jobs_total             # Total training jobs by status
-aqi_training_rmse_by_version        # RMSE per model version
+# Use .dockerignore to exclude files
+# Already configured in .dockerignore
 ```
 
 ### Health Checks
 
-#### Check Prometheus Status
-
 ```bash
-# Via curl
-curl http://localhost:9090/-/healthy
+# Check health
+docker-compose ps  # STATUS column shows "(healthy)"
 
-# Via Docker
-docker compose exec prometheus wget -q -O - http://localhost:9090/-/healthy
-```
-
-#### Check Grafana Status
-
-```bash
-# Via curl
-curl http://localhost:3000/api/health
-
-# Via Docker
-docker compose exec grafana curl http://localhost:3000/api/health
-```
-
-#### Check Metric Scraping
-
-```bash
-# View Prometheus targets
-curl http://localhost:9090/api/v1/targets
-
-# Check if API is being scraped
-curl "http://localhost:9090/api/v1/query?query=up{job=\"aqi-api\"}"
-
-# Example response (1 = UP, 0 = DOWN)
-# {"status":"success","data":{"resultType":"vector","result":[{"metric":{"job":"aqi-api"},"value":[timestamp,"1"]}]}}
-```
-
-### Querying Metrics
-
-#### Via Prometheus UI
-
-1. Go to http://localhost:9090
-2. Click "Graph" tab
-3. Enter query in expression field:
-
-```promql
-# Latest prediction latency (P95)
-histogram_quantile(0.95, aqi_prediction_latency_seconds)
-
-# API error rate (last 5 minutes)
-rate(aqi_api_requests_total{status_code=~"5.."}[5m])
-
-# Feature store age
-aqi_feature_store_age_hours
-
-# Model RMSE over time
-aqi_model_rmse_production
-```
-
-#### Via curl
-
-```bash
-# Query current value
-curl 'http://localhost:9090/api/v1/query?query=aqi_model_rmse_production'
-
-# Query range (last 1 hour)
-curl 'http://localhost:9090/api/v1/query_range?query=aqi_api_requests_total&start=1609459200&end=1609462800&step=300'
-```
-
-### Alerting (Optional)
-
-Alert rules are defined in `prometheus-rules.yml`:
-
-```yaml
-groups:
-  - name: aqi-alerts
-    rules:
-      # High error rate alert
-      - alert: HighErrorRate
-        expr: rate(aqi_api_requests_total{status_code=~"5.."}[5m]) > 0.05
-        for: 5m
-        
-      # Stale data alert
-      - alert: StaleData
-        expr: aqi_feature_store_age_hours > 24
-        for: 30m
-        
-      # Model drift alert
-      - alert: ModelDrift
-        expr: aqi_model_rmse_production > 50
-        for: 1h
-```
-
-To enable alerting, configure Alertmanager (optional - advanced setup).
-
-### Data Retention
-
-**Prometheus** retains metrics for **30 days** by default.
-
-To change retention:
-
-```bash
-# In docker-compose.yml, modify Prometheus command:
-command:
-  - '--storage.tsdb.retention.time=60d'  # 60 days
-```
-
-**Grafana** data persists in Docker volume `grafana-data`.
-
-### Persistence & Volumes
-
-```bash
-# View volumes
-docker volume ls | grep aqi
-
-# View volume contents
-docker volume inspect aqi-predictor_prometheus-data
-docker volume inspect aqi-predictor_grafana-data
-
-# Backup Prometheus data
-docker run --rm -v aqi-predictor_prometheus-data:/data \
-  -v $(pwd)/backups:/backup \
-  busybox tar czf /backup/prometheus-backup.tar.gz -C /data .
-
-# Backup Grafana data
-docker run --rm -v aqi-predictor_grafana-data:/data \
-  -v $(pwd)/backups:/backup \
-  busybox tar czf /backup/grafana-backup.tar.gz -C /data .
-```
-
-### Troubleshooting
-
-#### Prometheus not scraping metrics
-
-```bash
-# Check if API is running
+# Manual health check
 curl http://localhost:8000/health
 
-# Check Prometheus targets
-curl http://localhost:9090/api/v1/targets
-
-# View Prometheus logs
-docker compose logs prometheus | grep error
+# View health events
+docker events --filter type=container
 ```
-
-#### Grafana dashboards not loading
-
-```bash
-# Check datasource connection
-curl http://localhost:3000/api/datasources
-
-# Verify Prometheus is reachable from Grafana container
-docker compose exec grafana curl http://prometheus:9090/-/healthy
-
-# Check Grafana logs
-docker compose logs grafana | grep error
-```
-
-#### High memory usage
-
-Prometheus stores metrics in memory. To reduce:
-
-```bash
-# Reduce scrape frequency in prometheus.yml
-scrape_interval: 60s  # Instead of 30s
-
-# Reduce retention
-command:
-  - '--storage.tsdb.retention.time=7d'  # Instead of 30d
-
-# Restart
-docker compose restart prometheus
-```
-
-### Production Deployment
-
-#### 1. Change Grafana Password
-
-```bash
-# In .env.grafana
-GF_SECURITY_ADMIN_PASSWORD=your_secure_password_here
-```
-
-#### 2. Enable HTTPS (if behind reverse proxy)
-
-```bash
-# In .env.grafana
-GF_SERVER_PROTOCOL=https
-GF_SERVER_CERT_FILE=/etc/grafana/certs/cert.pem
-GF_SERVER_CERT_KEY=/etc/grafana/certs/key.pem
-```
-
-#### 3. Configure Authentication
-
-```bash
-# OAuth example in .env.grafana
-GF_AUTH_GENERIC_OAUTH_ENABLED=true
-GF_AUTH_GENERIC_OAUTH_CLIENT_ID=your_client_id
-GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=your_client_secret
-GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://provider.com/oauth/authorize
-GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://provider.com/oauth/token
-GF_AUTH_GENERIC_OAUTH_API_URL=https://provider.com/oauth/userinfo
-```
-
-#### 4. Remote Storage (Enterprise)
-
-For distributed setups, store Prometheus data remotely:
-
-```yaml
-# In prometheus.yml
-remote_write:
-  - url: "http://remote-prometheus:9090/api/v1/write"
-    queue_config:
-      capacity: 10000
-      max_shards: 200
-      min_shards: 1
-```
-
-#### 5. Resource Limits (Production)
-
-```yaml
-# In docker-compose.yml
-prometheus:
-  deploy:
-    resources:
-      limits:
-        cpus: '1'
-        memory: 2G
-      reservations:
-        cpus: '0.5'
-        memory: 1G
-
-grafana:
-  deploy:
-    resources:
-      limits:
-        cpus: '0.5'
-        memory: 512M
-      reservations:
-        cpus: '0.25'
-        memory: 256M
-```
-
-### Dashboard Customization
-
-#### Add Custom Dashboard
-
-1. In Grafana UI: Create > Dashboard
-2. Add panels with Prometheus queries
-3. Save to `grafana/provisioning/dashboards/`
-4. Restart Grafana:
-
-```bash
-docker compose restart grafana
-```
-
-#### Export Existing Dashboard
-
-```bash
-# In Grafana UI:
-# Dashboard > Settings > JSON Model > Copy
-# Save to grafana/provisioning/dashboards/custom.json
-
-# Restart Grafana to auto-load
-docker compose restart grafana
-```
-
-### Metrics Export
-
-#### Export metrics to CSV (for analysis)
-
-```bash
-# Via Prometheus HTTP API
-curl 'http://localhost:9090/api/v1/query_range' \
-  --data-urlencode 'query=aqi_api_requests_total' \
-  --data-urlencode 'start=1609459200' \
-  --data-urlencode 'end=1609545600' \
-  --data-urlencode 'step=300' \
-  > metrics.json
-
-# Parse and convert to CSV (requires jq)
-jq '.data.result[] | {metric: .metric, values: .values}' metrics.json > metrics.csv
-```
-
-### References
-
-- [Prometheus Documentation](https://prometheus.io/docs/)
-- [Grafana Documentation](https://grafana.com/docs/grafana/latest/)
-- [Prometheus Queries (PromQL)](https://prometheus.io/docs/prometheus/latest/querying/basics/)
-- [Grafana Dashboard Development](https://grafana.com/docs/grafana/latest/dashboards/)
 
 ---
 
-## Environment Variables Reference
+## 📦 Docker Images
 
-### API Environment Variables
+### Image Information
 
-```env
-HOPSWORKS_API_KEY=your_api_key
-HOPSWORKS_PROJECT=your_project
-HOPSWORKS_HOST=eu-west.cloud.hopsworks.ai
-HOPSWORKS_PORT=443
+**Dockerfile.prod** (Production API):
+```
+Base: python:3.11-slim
+Size: ~200-300 MB (optimized)
+Builder: Multi-stage (no build tools in final image)
+User: Non-root (appuser, uid 1000)
+Health Check: Every 30 seconds
 ```
 
-### Dashboard Environment Variables
-
-```env
-STREAMLIT_SERVER_HEADLESS=true
-STREAMLIT_SERVER_ENABLECORS=false
-STREAMLIT_SERVER_PORT=8501
+**Dockerfile.dashboard** (Streamlit):
+```
+Base: python:3.11-slim
+Size: ~300-400 MB
+Optimized: Slim base image
+Port: 8501
 ```
 
-### Grafana Environment Variables (in .env.grafana)
-
-```env
-GF_SECURITY_ADMIN_USER=admin
-GF_SECURITY_ADMIN_PASSWORD=admin
-GF_SERVER_ROOT_URL=http://localhost:3000
-GF_INSTALL_PLUGINS=grafana-piechart-panel
+**Dockerfile.api** (Alternative):
+```
+Base: python:3.11-slim
+Size: ~200-300 MB
+Purpose: Standalone API
 ```
 
-### Prometheus Environment Variables
+### Image Layers
 
-Configured via `prometheus.yml` (not env vars)
+```bash
+# See layers
+docker history aqi-api:latest
+
+# Example output:
+IMAGE          CREATED             CREATED BY                  SIZE
+abc123         2 minutes ago       /bin/sh -c uvicorn...       0B
+def456         5 minutes ago       /bin/sh -c useradd -m...    33kB
+ghi789         10 minutes ago      COPY src/ ./src/            50MB
+jkl012         15 minutes ago      COPY --from=builder...      120MB
+```
+
+---
+
+## 🚀 Deployment Checklist
+
+### Before Production Deployment
+
+- [ ] All tests pass locally
+- [ ] Docker image builds successfully
+- [ ] No sensitive data in image
+- [ ] Health checks configured
+- [ ] Environment variables set
+- [ ] Secrets in env vars (never in code)
+- [ ] .dockerignore excludes unnecessary files
+- [ ] Image size optimized (<500 MB)
+- [ ] Multi-stage build used
+- [ ] Non-root user configured
+
+### Deployment Steps
+
+```bash
+# 1. Build locally and test
+docker build -f Dockerfile.prod -t aqi-api:latest .
+docker run -p 8000:8000 aqi-api:latest
+
+# 2. Test health check
+curl http://localhost:8000/health
+
+# 3. Tag for registry
+docker tag aqi-api:latest your-registry/aqi-api:v1.0.0
+
+# 4. Push to registry
+docker push your-registry/aqi-api:v1.0.0
+
+# 5. Deploy to production
+# (Render/Kubernetes/ECS/etc.)
+
+# 6. Verify production health
+curl https://production-api.example.com/health
+```
+
+---
+
+## 📚 Resources
+
+### Official Documentation
+- [Docker Docs](https://docs.docker.com/)
+- [Docker Compose Docs](https://docs.docker.com/compose/)
+- [Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+- [Dockerfile Reference](https://docs.docker.com/engine/reference/builder/)
+
+### Related Guides
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Development setup
+- [DEPLOYMENT_IMPROVEMENTS.md](DEPLOYMENT_IMPROVEMENTS.md) - Advanced deployment
+- [README.md](README.md) - Project overview
+- [render.yaml](render.yaml) - Render.com configuration
+
+### Tools
+- [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- [Dive](https://github.com/wagoodman/dive) - Analyze layers
+- [Trivy](https://github.com/aquasecurity/trivy) - Security scanning
+- [Buildx](https://docs.docker.com/buildx/working-with-buildx/) - Multi-platform builds
+
+---
+
+## ✅ Quick Reference
+
+### Essential Commands
+
+```bash
+# Build
+docker build -f Dockerfile.prod -t aqi-api:latest .
+
+# Run
+docker run -p 8000:8000 aqi-api:latest
+
+# Compose
+docker-compose up
+docker-compose down
+
+# Logs
+docker logs <container_id>
+docker-compose logs -f
+
+# Shell
+docker exec -it <container_id> bash
+
+# Health
+curl http://localhost:8000/health
+
+# Clean
+docker system prune -a
+```
+
+---
+
+## 📞 Support
+
+### Common Questions
+
+**Q: How do I run tests in Docker?**
+```bash
+docker-compose exec api pytest tests/
+```
+
+**Q: Can I edit code while Docker is running?**
+```bash
+# Yes! Volumes enable hot reload
+# See docker-compose.yml volumes section
+# Edit files locally, changes appear in container
+```
+
+**Q: How do I use production secrets?**
+```bash
+# Never hardcode secrets!
+# Use environment variables:
+export SENTRY_DSN=https://...
+docker run -e SENTRY_DSN=$SENTRY_DSN aqi-api:latest
+
+# Or .env file (add to .gitignore!)
+```
+
+**Q: Is the Docker setup production-ready?**
+```bash
+# Yes! Multi-stage build, health checks, non-root user
+# Render.com uses Dockerfile.prod automatically
+# Ready for Kubernetes, AWS, GCP, etc.
+```
+
+---
+
+**Last Updated:** 2026-09-02  
+**Status:** ✅ Complete and Production-Ready
