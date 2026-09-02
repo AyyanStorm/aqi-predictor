@@ -18,9 +18,14 @@ US EPA breakpoints (the standard 0–500 scale used by Open-Meteo's
     301–500     Hazardous                   maroon  #7E0023
 """
 
+from typing import Tuple
+
+# Type alias for AQI band tuple
+AQIBand = Tuple[int, int, str, str, str]  # (min, max, label, color, message)
+
 # Each band: (min_aqi, max_aqi, label, colour_hex, health_message)
 # Ranges are inclusive of min, exclusive of max except the last (500).
-AQI_BANDS = [
+AQI_BANDS: list[AQIBand] = [
     (
         0, 50,
         "Good",
@@ -72,28 +77,63 @@ AQI_BANDS = [
 HAZARDOUS_THRESHOLD = 151
 
 
-def aqi_category(aqi):
-    """Band label for an AQI value, e.g. 42 -> 'Good'."""
+def aqi_category(aqi: float) -> str:
+    """Band label for an AQI value, e.g. 42 -> 'Good'.
+    
+    Args:
+        aqi: Air Quality Index value (0-500+)
+        
+    Returns:
+        Category name (e.g., 'Good', 'Moderate', 'Unhealthy')
+    """
     return _band_for(aqi)[2]
 
 
-def aqi_color(aqi):
-    """Official US EPA colour hex for an AQI value."""
+def aqi_color(aqi: float) -> str:
+    """Official US EPA colour hex for an AQI value.
+    
+    Args:
+        aqi: Air Quality Index value (0-500+)
+        
+    Returns:
+        Hex color code (e.g., '#00E400' for Good)
+    """
     return _band_for(aqi)[3]
 
 
-def health_message(aqi):
-    """EPA health message for an AQI value."""
+def health_message(aqi: float) -> str:
+    """EPA health message for an AQI value.
+    
+    Args:
+        aqi: Air Quality Index value (0-500+)
+        
+    Returns:
+        Health guidance message for the AQI level
+    """
     return _band_for(aqi)[4]
 
 
-def is_hazardous(aqi):
-    """True when AQI >= 151 — the 'Unhealthy' band and above."""
+def is_hazardous(aqi: float) -> bool:
+    """True when AQI >= 151 — the 'Unhealthy' band and above.
+    
+    Args:
+        aqi: Air Quality Index value (0-500+)
+        
+    Returns:
+        True if AQI is hazardous (>= 151), False otherwise
+    """
     return aqi >= HAZARDOUS_THRESHOLD
 
 
-def _band_for(aqi):
-    """Return the (min, max, label, color, message) tuple for an AQI."""
+def _band_for(aqi: float) -> AQIBand:
+    """Return the (min, max, label, color, message) tuple for an AQI.
+    
+    Args:
+        aqi: Air Quality Index value (0-500+)
+        
+    Returns:
+        AQI band tuple matching the AQI value
+    """
     for band in AQI_BANDS:
         lo, hi = band[0], band[1]
         if lo <= aqi <= hi:

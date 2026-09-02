@@ -17,21 +17,25 @@ handles that arithmetic correctly.
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from typing import Optional, List, Tuple
 
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Type aliases
+TimestampPair = Tuple[str, datetime]
+PeriodTuple = Tuple[str, int]
+
 # Display order of the timeline periods: current + the three horizons.
 # Shared with forecast_cards.py so the cards and the times can never
 # disagree about which horizon is which.
-PERIODS = [("Current", 0), ("+24h", 24), ("+48h", 48), ("+72h", 72)]
+PERIODS: List[PeriodTuple] = [("Current", 0), ("+24h", 24), ("+48h", 48), ("+72h", 72)]
 
 
-def city_now(tz_name):
-    """
-    Current local datetime for an IANA timezone name.
-
+def city_now(tz_name: Optional[str]) -> Optional[datetime]:
+    """Current local datetime for an IANA timezone name.
+    
     Parameters
     ----------
     tz_name : str | None
@@ -52,9 +56,8 @@ def city_now(tz_name):
         return None
 
 
-def horizon_times(tz_name):
-    """
-    The four timeline timestamps (current + 24/48/72h) in one zone.
+def horizon_times(tz_name: Optional[str]) -> Optional[List[TimestampPair]]:
+    """The four timeline timestamps (current + 24/48/72h) in one zone.
 
     Returns
     -------
@@ -69,12 +72,17 @@ def horizon_times(tz_name):
     return [(label, now + timedelta(hours=h)) for label, h in PERIODS]
 
 
-def format_local_dt(ts):
-    """
-    Compact human date+time: "Aug 12, 2026 — 10:30 AM".
+def format_local_dt(ts: Optional[datetime]) -> Optional[str]:
+    """Compact human date+time: "Aug 12, 2026 — 10:30 AM".
 
     12-hour clock (matching the existing dashboard copy) with a
     zero-padded-free hour: 09:30 shows as "9:30 AM".
+    
+    Args:
+        ts: Datetime to format (timezone-aware or naive)
+        
+    Returns:
+        Formatted date+time string, or None if ts is None
     """
     if ts is None:
         return None
@@ -86,13 +94,19 @@ def format_local_dt(ts):
     return f"{date_part} — {time_part}"
 
 
-def tz_display_name(tz_name, ts=None):
-    """
-    Short human label for a timezone: "Asia/Dubai · UTC+4".
+def tz_display_name(tz_name: Optional[str], ts: Optional[datetime] = None) -> Optional[str]:
+    """Short human label for a timezone: "Asia/Dubai · UTC+4".
 
     The offset is computed from the actual zone at that moment (zoneinfo
     knows about DST), never hardcoded. Falls back to the bare name if
     the zone is invalid.
+    
+    Args:
+        tz_name: IANA timezone name (e.g., "Asia/Dubai")
+        ts: Specific datetime to compute offset for (uses current time if None)
+        
+    Returns:
+        Formatted timezone display name, or None if tz_name is None
     """
     if not tz_name:
         return None
