@@ -1,0 +1,194 @@
+name: Deployment Quality Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docker-build:
+    name: Docker Build & Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build production image
+        run: |
+          docker build -f Dockerfile.prod -t aqi-api:latest .
+          echo "✅ Production Docker image built successfully"
+      
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: aqi-api:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  health-endpoints:
+    name: Health Endpoint Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install fastapi uvicorn pytest httpx python-dotenv
+      
+      - name: Start API server
+        run: |
+          uvicorn app.api:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+      
+      - name: Test health endpoint
+        run: |
+          python -c "
+          import httpx
+          client = httpx.Client()
+          response = client.get('http://localhost:8000/health')
+          assert response.status_code == 200, f'Health check failed: {response.status_code}'
+          data = response.json()
+          assert 'status' in data, 'Missing status field'
+          assert 'timestamp' in data, 'Missing timestamp field'
+          assert 'version' in data, 'Missing version field'
+          assert 'components' in data, 'Missing components field'
+          print('✅ Health endpoint validation passed')
+          "
+      
+      - name: Test metrics endpoint
+        run: |
+          python -c "
+          import httpx
+          client = httpx.Client()
+          response = client.get('http://localhost:8000/metrics')
+          assert response.status_code == 200, f'Metrics endpoint failed: {response.status_code}'
+          assert 'HELP' in response.text, 'Invalid Prometheus format'
+          print('✅ Metrics endpoint validation passed')
+          "
+      
+      - name: Test readiness probe
+        run: |
+          python -c "
+          import httpx
+          client = httpx.Client()
+          response = client.get('http://localhost:8000/readiness')
+          assert response.status_code in [200, 503], f'Readiness probe failed: {response.status_code}'
+          print('✅ Readiness probe validation passed')
+          "
+
+  monitoring-config:
+    name: Monitoring Configuration Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Verify Sentry configuration
+        run: |
+          python -c "
+          import os
+          # In CI, SENTRY_DSN may not be set, but code should support it
+          from src.monitoring import init_sentry
+          print('✅ Sentry initialization available')
+          "
+      
+      - name: Verify monitoring module
+        run: |
+          python -c "
+          from src.monitoring import (
+              setup_structured_logging,
+              log_event,
+              log_prediction,
+              log_error,
+              MonitoringMiddleware,
+              get_health_status
+          )
+          print('✅ All monitoring functions available')
+          "
+      
+      - name: Verify health module
+        run: |
+          python -c "
+          from src.health import (
+              get_health_status,
+              get_liveness,
+              get_readiness
+          )
+          print('✅ All health check functions available')
+          "
+
+  deployment-readiness:
+    name: Deployment Readiness
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check render.yaml
+        run: |
+          python -c "
+          import yaml
+          with open('render.yaml') as f:
+            config = yaml.safe_load(f)
+          
+          # Verify API service
+          api = next((s for s in config['services'] if s['name'] == 'aqi-api'), None)
+          assert api is not None, 'API service missing'
+          assert api.get('plan') == 'standard', 'API should use standard plan for production'
+          assert api.get('maxInstances') == 3, 'API should have auto-scaling'
+          assert api.get('healthCheckPath') == '/health', 'Health check path missing'
+          
+          print('✅ render.yaml production configuration verified')
+          "
+      
+      - name: Check Dockerfile.prod
+        run: |
+          # Verify multi-stage build
+          STAGES=$(grep -c "^FROM" Dockerfile.prod)
+          echo "Found $STAGES FROM statements"
+          if [ $STAGES -ge 2 ]; then
+            echo "✅ Multi-stage build configured"
+          else
+            echo "⚠️  Consider using multi-stage build"
+          fi
+          
+          # Verify health check
+          if grep -q "HEALTHCHECK" Dockerfile.prod; then
+            echo "✅ Health check configured in Dockerfile"
+          else
+            echo "❌ Health check missing from Dockerfile"
+            exit 1
+          fi
+      
+      - name: Check monitoring requirements
+        run: |
+          python -c "
+          import re
+          with open('requirements.txt') as f:
+            content = f.read()
+          
+          required = ['sentry-sdk', 'prometheus-client', 'python-json-logger']
+          for pkg in required:
+            if pkg in content:
+              print(f'✅ {pkg} included')
+            else:
+              print(f'❌ {pkg} missing')
+              exit(1)
+          "
