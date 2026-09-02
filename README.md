@@ -14,6 +14,14 @@ Pakistani cities, an automated data/training pipeline, and a location-aware dash
 
 ---
 
+## 🌐 Live Demo
+
+**Try it now:** https://aqi-predictor-blii.onrender.com/
+
+Full deployment on Render with API, dashboard, and all features running live.
+
+---
+
 ## 🚀 Quick Start
 
 ### Option 1: Docker Compose (Recommended)
