@@ -105,6 +105,7 @@ openclaw-workspace-state.json
 # Environment files (except examples)
 .env.local
 .env.*.local
+.env.grafana  # Runtime config with credentials - keep example only
 
 # Temporary files
 *.tmp
