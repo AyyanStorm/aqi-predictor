@@ -54,6 +54,8 @@ data/*
 # HTTP response cache
 .cache.sqlite
 *.sqlite
+.cache*.sqlite
+.prediction_cache.json
 
 # pip-compile cache
 .pip-tools-cache/

@@ -64,10 +64,13 @@ try:
         'Total rate limit exceeded errors',
         ['endpoint']
     )
-except:
+except ValueError:
     # Already registered in a previous import
     from prometheus_client import REGISTRY
     rate_limit_exceeded_counter = REGISTRY._names_to_collectors.get('aqi_rate_limit_exceeded_total')
+except Exception as e:
+    logger.warning(f"Failed to create rate limit counter: {e}")
+    rate_limit_exceeded_counter = None
 
 app = FastAPI(
     title="AQI Predictor — Pakistan",
