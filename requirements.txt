@@ -32,3 +32,7 @@ matplotlib==3.10.0
 
 # Utilities
 beautifulsoup4==4.12.3
+
+# NOTE: hopsworks is optional (feature-store only) - removed from main dependencies
+# due to conflicting protobuf/numpy requirements with streamlit & shap.
+# Install separately: pip install hopsworks>=3.9.0 if needed for feature store.

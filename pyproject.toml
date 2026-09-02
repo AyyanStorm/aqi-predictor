@@ -56,9 +56,6 @@ dependencies = [
     # Data Visualization & Analysis
     "seaborn==0.13.2",
     "matplotlib==3.10.0",
-    
-    # Additional utilities
-    "hopsworks>=3.9.0",
 ]
 
 [project.optional-dependencies]
