@@ -1,84 +1,73 @@
 ## Description
 
-Brief description of the changes in this PR.
-
-## Related Issue
-
-Closes #123
+**What does this PR do?**
+<!-- Brief summary of changes -->
 
 ## Type of Change
 
-- [ ] Bug fix (non-breaking change fixing an issue)
-- [ ] New feature (non-breaking change adding functionality)
-- [ ] Breaking change (fix or feature that changes existing behavior)
-- [ ] Documentation update
-- [ ] Dependency update
+- [ ] 🐛 Bug fix (fixes #___)
+- [ ] ✨ New feature (closes #___)
+- [ ] 📚 Documentation update
+- [ ] 🔧 Configuration change
+- [ ] ♻️ Refactoring
+- [ ] 📈 Performance improvement
+- [ ] 🔒 Security fix
+- [ ] ⬆️ Dependency update
 
-## Changes Made
+## Related Issue(s)
 
-- Change 1
-- Change 2
-- Change 3
-
-## Testing
-
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] Manual testing completed
-- [ ] Test coverage maintained or improved (>80%)
+Closes #___
+Related to #___
 
 ## Checklist
 
-- [ ] Code follows style guidelines (black, flake8)
-- [ ] Type hints added for new functions
-- [ ] Docstrings updated/added
-- [ ] Documentation updated (README.md, DOCKER.md, etc.)
-- [ ] No new warnings generated
-- [ ] All tests pass locally
-- [ ] Commit messages follow convention
-- [ ] Changes don't introduce security issues
+### Code Quality
+- [ ] Code follows project style guidelines
+- [ ] Tests added/updated for new functionality
+- [ ] All tests pass locally (`pytest`)
+- [ ] No new linting errors (`flake8`, `mypy`)
+- [ ] Docstrings added for new functions
 
-## Breaking Changes
+### Documentation
+- [ ] README updated if needed
+- [ ] CHANGELOG updated (under Unreleased)
+- [ ] API docs updated if applicable
+- [ ] Comments added for complex logic
 
-If this PR includes breaking changes, describe them here:
-- Change 1: Impact and migration path
+### Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing done
+- [ ] Edge cases considered
 
-## Screenshots or Examples
+### Deployment
+- [ ] No database migrations needed
+- [ ] No breaking API changes
+- [ ] Environment variables documented
+- [ ] Backwards compatible
 
-If applicable, add screenshots or code examples:
+### Performance & Security
+- [ ] No performance regressions
+- [ ] No new security vulnerabilities
+- [ ] Dependencies are up-to-date
 
-```python
-# Before
-def old_function():
-    pass
+## Screenshots (if applicable)
 
-# After
-def new_function() -> str:
-    """Description of new behavior."""
-    return "result"
+<!-- Add screenshots for UI changes -->
+
+## Testing Instructions
+
+```bash
+# How to test this change locally
+pytest tests/test_new_feature.py
 ```
-
-## Performance Impact
-
-Any performance implications?
-- [ ] No impact
-- [ ] Performance improved
-- [ ] Performance degraded (explain why and mitigation)
 
 ## Deployment Notes
 
-Any special deployment considerations?
-- Database migrations needed?
-- Environment variables added?
-- New dependencies to install?
-
-## Reviewers
-
-@AyyanStorm or relevant team members
+<!-- Any special steps needed for deployment? -->
 
 ---
 
-**Note:** This PR will be checked by:
-- ✅ GitHub Actions (tests, linting, security scan)
-- ✅ Code review (at least one approval)
-- ✅ Docker security scan (Trivy)
+**Reviewer Notes:**
+- Target review time: 24 hours
+- Squash-merge preferred for cleaner history

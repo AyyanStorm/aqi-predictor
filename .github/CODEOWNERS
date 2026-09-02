@@ -1,0 +1,33 @@
+# CODEOWNERS - Code Review Assignment
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Everyone owns the entire project (until team expands)
+* @AyyanStorm
+
+# ML Model & Training
+src/training/ @AyyanStorm
+src/inference/ @AyyanStorm
+notebooks/ @AyyanStorm
+*.ipynb @AyyanStorm
+
+# API & Web Services
+app/ @AyyanStorm
+src/core/ @AyyanStorm
+.github/workflows/ @AyyanStorm
+
+# Data & Feature Engineering
+src/utils/ @AyyanStorm
+src/config.py @AyyanStorm
+
+# Documentation
+*.md @AyyanStorm
+docs/ @AyyanStorm
+
+# Configuration
+pyproject.toml @AyyanStorm
+requirements.txt @AyyanStorm
+render.yaml @AyyanStorm
+
+# Security & Deployment
+Dockerfile.prod @AyyanStorm
+.env.example @AyyanStorm
